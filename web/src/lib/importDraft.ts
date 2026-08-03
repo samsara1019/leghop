@@ -205,6 +205,7 @@ interface WorkerItem {
   query?: string
   title?: string
   modeHints?: string[]
+  startAt?: string
   durationMin?: number
   note?: string
 }
@@ -240,6 +241,8 @@ export async function draftsFromProseGemini(
         query: raw.query,
         title: raw.title,
         note: raw.note,
+        // "09:40 공항 도착"처럼 메모에 시각이 있으면 일정에 그대로 고정된다
+        startAt: /^\d{1,2}:\d{2}$/.test(raw.startAt ?? '') ? raw.startAt : undefined,
         durationMin: raw.durationMin,
         modeHints: (raw.modeHints ?? []).filter((m): m is TravelMode =>
           ['transit', 'walking', 'driving', 'bicycling'].includes(m),

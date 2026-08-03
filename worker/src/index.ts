@@ -15,59 +15,89 @@ export interface Env {
 }
 
 const DEFAULT_MODEL = 'gemini-3.6-flash'
+/** 요청으로 바꿔 끼울 수 있는 모델. 임의 문자열을 그대로 넘기지 않는다. */
+const ALLOWED_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+]
 const DEFAULT_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 const MAX_INPUT_CHARS = 8000
 
 /** DESIGN.md §8의 응답 스키마. Gemini는 OpenAPI 서브셋을 쓰고 타입명이 대문자다. */
+/**
+ * DESIGN.md §8의 응답 스키마. Gemini는 OpenAPI 서브셋을 쓰고 타입명이 대문자다.
+ *
+ * 필드 의미를 **스키마 description에 둔다.** 시스템 지시문에만 적어두면 모델이
+ * 필드 값에 설명과 추론을 함께 쏟아낸다(실제로 title에 "Wait, title shouldn't
+ * have extra text..." 같은 독백이 들어왔다). description은 값의 형태를 직접
+ * 제약하므로 훨씬 잘 지켜진다.
+ */
 const RESPONSE_SCHEMA = {
   type: 'ARRAY',
   items: {
     type: 'OBJECT',
     properties: {
-      kind: { type: 'STRING', enum: ['stop', 'activity', 'transfer'] },
-      query: { type: 'STRING' },
-      title: { type: 'STRING' },
+      kind: {
+        type: 'STRING',
+        enum: ['stop', 'activity', 'transfer'],
+        description:
+          'stop=방문하는 장소, activity=이동 없는 활동(입국심사·체크인·휴식), transfer=이동 수단만 적힌 구간',
+      },
+      query: {
+        type: 'STRING',
+        description:
+          'kind=stop일 때만. 메모에 적힌 장소 이름을 구글맵 검색어로. 알면 현지 표기, 모르면 적힌 대로. 조사와 동작(에서/먹기/가기)은 뺀다. 도시명은 붙이지 않는다.',
+      },
+      title: {
+        type: 'STRING',
+        description:
+          'kind=activity일 때만. 메모에 적힌 활동 표현을 짧게 그대로. 부연 설명 금지.',
+      },
       modeHints: {
         type: 'ARRAY',
         items: {
           type: 'STRING',
           enum: ['transit', 'walking', 'driving', 'bicycling'],
         },
+        description:
+          'kind=transfer일 때만. 버스·지하철·기차=transit, 택시·렌터카=driving, 도보=walking, 자전거=bicycling. 여러 수단이 적혀 있으면 모두 담는다.',
       },
-      durationMin: { type: 'INTEGER' },
-      note: { type: 'STRING' },
+      durationMin: {
+        type: 'INTEGER',
+        description:
+          '분 단위 체류 시간. 메모에 적혀 있으면 그 값, 없으면 활동 성격에 맞는 추정치. transfer에는 넣지 않는다.',
+      },
+      startAt: {
+        type: 'STRING',
+        description:
+          '메모에 시각이 적혀 있을 때만. HH:MM 24시간제. 적혀 있지 않으면 생략한다.',
+      },
+      note: {
+        type: 'STRING',
+        description: '메모에 적힌 사용자 의도를 몇 단어로. 메모에 없으면 생략한다.',
+      },
     },
     required: ['kind'],
+    propertyOrdering: [
+      'kind',
+      'query',
+      'title',
+      'modeHints',
+      'startAt',
+      'durationMin',
+      'note',
+    ],
   },
 }
 
-const SYSTEM_INSTRUCTION = `너는 여행 메모를 일정 데이터로 바꾸는 파서다. 설명이나 인사말 없이 JSON 배열만 낸다.
+const SYSTEM_INSTRUCTION = `여행 메모를 일정 항목 배열로 바꾼다. 메모에 적힌 순서를 유지한다.
 
-입력은 사람이 손으로 쓴 여행 계획 메모다. 줄 단위로 읽되, 한 줄에 여러 항목이 섞여 있으면 나눠라.
-항목을 메모에 적힌 순서 그대로 배열에 담는다.
+각 필드는 스키마의 description대로 채운다. 값만 쓴다 — 설명, 근거, 대안 검토를 값 안에 넣지 마라.
+메모에 없는 내용을 만들지 마라. 스키마 설명은 형식 안내일 뿐이며, 그 안의 표현을 값으로 옮겨 쓰면 안 된다.
+한 줄에 여러 항목이 섞여 있으면 나눈다.
 
-각 항목의 kind는 셋 중 하나다.
-
-- "stop": 실제로 방문하는 장소. query에 구글맵에서 검색될 만한 이름을 넣는다.
-  현지 표기를 우선한다. "라 플라우타" → query: "La Flauta".
-  한국어 음차만 있고 원어를 모르면 음차 그대로 둔다.
-  도시명은 기본적으로 붙이지 마라 — 호출부가 지역 편향을 이미 걸어둔다.
-  단, 메모에 주어진 도시와 다른 지역이 언급되면 그 지역명을 query에 붙여라.
-  ("몬세라트 수도원" 같은 근교 일정이 여기 해당한다)
-- "activity": 장소 이동이 아닌 활동. 공항 입국심사, 짐 찾기, 체크인, 휴식 등.
-  title에 활동명을 넣는다. query는 넣지 않는다.
-- "transfer": 이동 수단이 명시된 구간. modeHints에 후보를 넣는다.
-  공항버스/버스/지하철/기차 → "transit", 택시/렌터카 → "driving", 도보 → "walking", 자전거 → "bicycling".
-  "A 또는 B"처럼 여러 수단이 적혀 있으면 모두 담는다.
-
-durationMin은 메모에 시간이 적혀 있으면 그 값을, 없으면 상식적인 추정치를 넣는다.
-입국심사+짐찾기 80, 호텔 체크인 30, 식사 90, 미술관/성당 관람 120 정도가 기준이다.
-transfer에는 durationMin을 넣지 마라 — 실제 소요시간은 Directions API가 계산한다.
-
-note에는 메모에 적힌 사용자의 의도를 짧게 남긴다. "꿀대구", "사전 예약 필요" 같은 것.
-없으면 생략한다.
-
-메모에 없는 장소를 지어내지 마라.`
+시간이 적혀 있지 않을 때 쓰는 체류 시간 기준(분): 공항 입국 절차 80, 숙소 체크인 30, 식사 90, 박물관·미술관·성당 120, 그 외 60.`
 
 function corsHeaders(origin: string | null, env: Env): Record<string, string> {
   const allowed = env.ALLOWED_ORIGINS
@@ -125,7 +155,12 @@ export default {
       return json({ error: 'missing_api_key' }, 500, cors)
     }
 
-    let body: { text?: unknown; cityHint?: unknown }
+    let body: {
+      text?: unknown
+      cityHint?: unknown
+      model?: unknown
+      thinkingLevel?: unknown
+    }
     try {
       body = await request.json()
     } catch {
@@ -141,7 +176,10 @@ export default {
     }
 
     const cityHint = typeof body.cityHint === 'string' ? body.cityHint.trim() : ''
-    const model = env.GEMINI_MODEL || DEFAULT_MODEL
+    const requested = typeof body.model === 'string' ? body.model : ''
+    const model = ALLOWED_MODELS.includes(requested)
+      ? requested
+      : env.GEMINI_MODEL || DEFAULT_MODEL
 
     const prompt = cityHint
       ? `도시: ${cityHint}\n\n여행 메모:\n${text}`
@@ -164,6 +202,13 @@ export default {
               responseMimeType: 'application/json',
               responseSchema: RESPONSE_SCHEMA,
               temperature: 0.2,
+              maxOutputTokens: 4096,
+              // 사고를 켜두면 추론이 출력 필드로 새어 들어온다. 단순 추출이라 필요 없다.
+              // (thinkingBudget은 Gemini 3에서 400을 낸다 — thinkingLevel이 맞는 필드)
+              thinkingConfig: {
+                thinkingLevel:
+                  body.thinkingLevel === 'high' ? 'high' : 'low',
+              },
             },
           }),
         },
@@ -186,20 +231,31 @@ export default {
     }
 
     const payload = (await upstream.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[]
+      candidates?: {
+        content?: { parts?: { text?: string }[] }
+        finishReason?: string
+      }[]
+      usageMetadata?: Record<string, number>
     }
-    const raw = payload.candidates?.[0]?.content?.parts?.[0]?.text
+    const candidate = payload.candidates?.[0]
+    const raw = candidate?.content?.parts?.[0]?.text
+    // finishReason이 MAX_TOKENS면 응답이 잘린 것이고, 그게 대개 이상한 결과의 원인이다
+    const meta = {
+      model,
+      finishReason: candidate?.finishReason,
+      usage: payload.usageMetadata,
+    }
 
     if (!raw) {
-      return json({ error: 'empty_response', payload }, 502, cors)
+      return json({ error: 'empty_response', meta, payload }, 502, cors)
     }
 
     // responseSchema를 걸었으므로 파싱은 사실상 실패하지 않지만,
     // 안전 필터로 잘린 응답이 오면 여기로 떨어진다.
     try {
-      return json({ items: JSON.parse(raw) }, 200, cors)
+      return json({ items: JSON.parse(raw), meta }, 200, cors)
     } catch {
-      return json({ error: 'unparseable_response', raw }, 502, cors)
+      return json({ error: 'unparseable_response', meta, raw }, 502, cors)
     }
   },
 }

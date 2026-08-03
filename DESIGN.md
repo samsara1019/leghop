@@ -356,9 +356,21 @@ Worker가 설정되지 않았어도 규칙 기반 파서로 동작한다. Gemini
 **처리 파이프라인**
 
 1. Worker `POST /parse` → Gemini API 호출
-   - 모델: **`gemini-3.6-flash`** (토큰 효율·저비용. 품질 부족 시 `gemini-3.5-flash`로 승급)
-   - `responseMimeType: "application/json"` + `responseSchema`로 **구조화 출력 강제** → 파싱 실패 없음
-   - `thinkingConfig`는 최소로 (단순 추출 작업이라 추론 예산 불필요)
+   - 모델: **`gemini-3.6-flash`** (실측 검증 완료)
+   - `responseMimeType: "application/json"` + `responseSchema`로 **구조화 출력 강제**
+
+   **실측으로 확정한 3가지** (여기서 하나라도 틀리면 출력이 쓸 수 없게 망가진다):
+
+   | 항목 | 결론 | 안 하면 |
+   |---|---|---|
+   | `thinkingConfig.thinkingLevel: 'low'` | **필수** | 모델의 추론이 출력 필드로 새어 들어온다. `title`에 `"Wait, title shouldn't have extra text..."` 같은 독백이 값으로 들어왔다 |
+   | 필드 의미를 **스키마 `description`에** 둔다 | 시스템 지시문만으로는 부족 | 사고를 끄면 이번엔 출력이 4080토큰까지 폭주해 `MAX_TOKENS`로 잘린다 |
+   | `description`에 **구체적 예시를 넣지 않는다** | 형식만 서술 | 예시가 값으로 복사된다. `09:40 BCN 공항 도착` 입력에 `입국 심사 및 짐 찾기`(내 예시문)가 출력됐다 |
+
+   - `thinkingBudget`은 Gemini 3에서 400을 낸다 — `thinkingLevel`이 맞는 필드다
+   - `maxOutputTokens: 4096` 명시. 사고 토큰도 출력 예산을 먹는다
+   - Worker는 응답에 `meta`(모델·`finishReason`·토큰 사용량)를 함께 돌려준다.
+     `finishReason: MAX_TOKENS`가 곧 "출력이 잘렸다"는 신호라 진단이 빠르다
 
    응답 스키마:
    ```json
@@ -371,6 +383,7 @@ Worker가 설정되지 않았어도 규칙 기반 파서로 동작한다. Gemini
          "query":      {"type":"string"},   // stop: 장소 검색어
          "title":      {"type":"string"},   // activity: 활동명
          "modeHints":  {"type":"array","items":{"type":"string"}},
+         "startAt":    {"type":"string"},   // 메모에 시각이 있으면 HH:MM
          "durationMin":{"type":"integer"},
          "note":       {"type":"string"}
        },
