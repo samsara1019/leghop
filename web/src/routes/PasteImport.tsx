@@ -15,6 +15,11 @@ import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories'
 import { MODE_EMOJI, MODE_LABEL } from '../lib/directions'
 import { hasWorker } from '../lib/env'
 import {
+  defaultBias,
+  destinationForDate,
+  sortDestinations,
+} from '../lib/destinations'
+import {
   COLUMN_ROLE_LABEL,
   guessColumns,
   parseClipboard,
@@ -60,6 +65,12 @@ export function PasteImport() {
     () => db.days.where('tripId').equals(tripId).sortBy('date'),
     [tripId],
   )
+  const destinations = useLiveQuery(
+    () => db.destinations.where('tripId').equals(tripId).toArray(),
+    [tripId],
+  )
+  /** 어느 도시 기준으로 검색·등록할지. 빈 값이면 첫 도시 */
+  const [destId, setDestId] = useState('')
 
   if (trip === undefined) {
     return <p className="p-5 text-sm text-slate-400">불러오는 중…</p>
@@ -76,8 +87,13 @@ export function PasteImport() {
   }
   // 호이스팅되는 function 선언 안에서는 위 가드로 좁혀진 타입이 유지되지 않는다.
   // 필요한 값만 원시값으로 꺼내 쓴다.
-  const city = trip.city
-  const bias = { lat: trip.lat, lng: trip.lng }
+  const cities = sortDestinations(destinations ?? [])
+  const activeDest = cities.find((d) => d.id === destId) ?? cities[0]
+  const city = activeDest?.name ?? ''
+  const bias = activeDest
+    ? { lat: activeDest.lat, lng: activeDest.lng }
+    : (defaultBias(cities) ?? { lat: 0, lng: 0 })
+  const activeDestId = activeDest?.id
   const tripStart = trip.startDate
   const tripEnd = trip.endDate
 
@@ -105,7 +121,10 @@ export function PasteImport() {
       if (d.kind !== 'stop' || !d.query) continue
       setBusy(`장소 찾는 중… (${i + 1}/${out.length})`)
       try {
-        const candidates = await searchCandidates(placesLib, `${d.query} ${city}`, bias)
+        // 검색어에 여행 도시명을 덧붙이지 않는다. 지역 편향(locationBias)만으로
+        // 충분하고, 붙이면 근교나 다른 도시의 장소를 못 찾는다
+        // (바르셀로나 여행 중 몬세라트·지로나 같은 근교 일정).
+        const candidates = await searchCandidates(placesLib, d.query, bias)
         out[i] = {
           ...d,
           candidates,
@@ -206,6 +225,7 @@ export function PasteImport() {
           dup?.id ??
           (await addPlace({
             tripId,
+            destinationId: activeDestId,
             googlePlaceId: chosen.googlePlaceId,
             name: chosen.name,
             category: draftCategory(d),
@@ -395,14 +415,45 @@ export function PasteImport() {
             ))}
           </ul>
 
-          <div className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            {cities.length > 1 && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-slate-500">
+                  어느 도시의 장소인가
+                </span>
+                <select
+                  value={activeDestId ?? ''}
+                  onChange={(e) => setDestId(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                >
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-400">
+                  이 도시 주변으로 검색합니다. 도시가 섞여 있으면 도시별로 나눠
+                  붙여넣는 게 정확합니다.
+                </span>
+              </label>
+            )}
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-slate-500">
                 일정에도 추가할 날짜
               </span>
               <select
                 value={targetDayId}
-                onChange={(e) => setTargetDayId(e.target.value)}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setTargetDayId(id)
+                  // 날짜를 고르면 그날 머무는 도시로 기준을 옮긴다
+                  const picked = (days ?? []).find((d) => d.id === id)
+                  if (picked) {
+                    const c = destinationForDate(cities, picked.date)
+                    if (c) setDestId(c.id)
+                  }
+                }}
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
               >
                 <option value="">장소 서랍에만 추가</option>

@@ -157,15 +157,23 @@ IndexedDB (Dexie). 모든 엔티티는 로컬이 정본.
 
 ```ts
 Trip {
-  id, title, city,
-  lat, lng,                      // 지도 초기 중심 + Places 검색 지역 편향 (P1에서 추가)
-  countryCode?, timezone?, currency?,   // 채울 경로가 아직 없어 optional로 둠
+  id, title,
   startDate, endDate,
+  currency?,
   createdAt, updatedAt
+}
+
+Destination {                    // 한 여행에 여러 도시 (바르셀로나 → 세비야 → 마요르카)
+  id, tripId, name,
+  lat, lng,                      // 지도 중심 + Places 검색 지역 편향
+  startDate,                     // 이 도시에 머무는 첫날. **종료일은 두지 않는다**
+  order,
+  countryCode?, timezone?
 }
 
 Place {                          // 장소 서랍의 항목
   id, tripId,
+  destinationId?,                // 어느 도시의 장소인가 (v2 마이그레이션 전 데이터엔 없음)
   googlePlaceId?,                // 무기한 보관 가능 (§7)
   name, nameLocal?,              // "라 플라우타" / "La Flauta"
   category: 'lodging'|'food'|'sight'|'shop'|'transport'|'custom',
@@ -297,6 +305,9 @@ Places / Directions / Maps JS는 **브라우저에서 JS API 라이브러리로 
 
 | 리스크 | 대응 |
 |---|---|
+| 여러 도시를 도는 여행 | **해결됨** — `Destination`을 1급 엔티티로 두고 도시별 지역 편향·장소 소속을 분리했다(DB v2). 도시 경계는 시작일 하나로만 정의해 기간 겹침·빈 날 예외를 없앴다 |
+| 한 도시 안에서도 근교를 가는 경우 (몬세라트, 지로나) | 지역 편향은 **제한이 아니라 편향**이라 반경 밖 장소도 검색된다. 검색어에 도시명을 덧붙이지 않는 이유가 이것 |
+| 날짜를 UTC로 다루면 KST(+9)에서 하루 밀린다 | `toISOString().slice(0,10)` 금지. 날짜 문자열은 전부 `lib/dates.ts`의 로컬 시간 헬퍼로 만든다 (UTC−8 ~ UTC+14 시간대에서 검증) |
 | 대중교통 경로가 유럽 소도시에서 부정확 | 도보/택시 대안을 항상 함께 표시 |
 | 현지에서 데이터가 안 터지면 지도를 못 봄 | turn-by-turn 텍스트 + 주소 + 좌표를 크게 보여주는 것으로 대체 (§3.4). 로밍/eSIM 사용을 전제로 하는 설계임을 명시 |
 | iOS Safari의 IndexedDB 삭제 | `storage.persist()` + 홈 화면 설치 유도 |

@@ -1,14 +1,30 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/schema'
+import { db, type Destination } from '../db/schema'
 import { createTrip, deleteTrip } from '../db/repo'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { hasMapsKey } from '../lib/env'
+import { todayISO } from '../lib/dates'
+import { routeSummary } from '../lib/destinations'
 
 export function TripList() {
   const trips = useLiveQuery(() => db.trips.orderBy('startDate').toArray(), [])
+  const destinations = useLiveQuery(() => db.destinations.toArray(), [])
   const [creating, setCreating] = useState(false)
+
+  /** 여행 카드에 "바르셀로나 → 세비야 → 마요르카"를 보여주려면 여행별로 묶어야 한다 */
+  const routeByTrip = useMemo(() => {
+    const grouped = new Map<string, Destination[]>()
+    for (const d of destinations ?? []) {
+      const arr = grouped.get(d.tripId)
+      if (arr) arr.push(d)
+      else grouped.set(d.tripId, [d])
+    }
+    return new Map(
+      [...grouped].map(([tripId, list]) => [tripId, routeSummary(list)]),
+    )
+  }, [destinations])
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5 p-5">
@@ -55,8 +71,11 @@ export function TripList() {
             >
               <Link to={`/trip/${t.id}`} className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{t.title}</span>
-                <span className="block text-sm text-slate-500">
-                  {t.city} · {t.startDate} ~ {t.endDate}
+                <span className="block truncate text-sm text-slate-500">
+                  {routeByTrip.get(t.id) || '도시 없음'}
+                </span>
+                <span className="block text-xs text-slate-400">
+                  {t.startDate} ~ {t.endDate}
                 </span>
               </Link>
               <button
@@ -83,7 +102,7 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
   const [city, setCity] = useState<{ name: string; lat: number; lng: number } | null>(
     null,
   )
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   const [startDate, setStartDate] = useState(today)
   const [endDate, setEndDate] = useState(today)
 
@@ -93,18 +112,16 @@ function NewTripForm({ onDone }: { onDone: () => void }) {
     if (!city) return
     await createTrip({
       title: title.trim() || city.name,
-      city: city.name,
-      lat: city.lat,
-      lng: city.lng,
       startDate,
       endDate,
+      firstCity: city,
     })
     onDone()
   }
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <Field label="도시">
+      <Field label="첫 도시">
         {city ? (
           <div className="flex items-center gap-2 text-sm">
             <span className="flex-1 truncate">{city.name}</span>

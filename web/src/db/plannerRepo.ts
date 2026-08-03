@@ -7,23 +7,9 @@ import {
   type LegOption,
   type TravelMode,
 } from './schema'
+import { eachDateISO } from '../lib/dates'
 
 // ---------- Day ----------
-
-function eachDate(startDate: string, endDate: string): string[] {
-  const out: string[] = []
-  const cur = new Date(`${startDate}T00:00:00`)
-  const end = new Date(`${endDate}T00:00:00`)
-  // 날짜가 뒤집혀 있으면 하루만 만든다
-  if (Number.isNaN(cur.getTime()) || Number.isNaN(end.getTime()) || cur > end) {
-    return [startDate]
-  }
-  while (cur <= end) {
-    out.push(cur.toISOString().slice(0, 10))
-    cur.setDate(cur.getDate() + 1)
-  }
-  return out
-}
 
 /**
  * 여행 기간에 맞춰 Day를 만든다. 이미 있는 날짜는 건드리지 않는다.
@@ -36,7 +22,7 @@ export async function ensureDays(
   startDate: string,
   endDate: string,
 ): Promise<Day[]> {
-  const dates = eachDate(startDate, endDate)
+  const dates = eachDateISO(startDate, endDate)
   await db.transaction('rw', db.days, async () => {
     const existing = await db.days.where('tripId').equals(tripId).toArray()
     const byDate = new Map(existing.map((d) => [d.date, d]))

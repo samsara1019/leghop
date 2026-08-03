@@ -6,6 +6,11 @@ import { addPlace, deletePlace, findPlaceByGoogleId, updatePlace } from '../db/r
 import { CATEGORIES, CATEGORY_ORDER, inferCategory } from '../lib/categories'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { PlacesMap } from '../components/PlacesMap'
+import {
+  defaultBias,
+  destinationForPlace,
+  sortDestinations,
+} from '../lib/destinations'
 
 type Filter = PlaceCategory | 'all'
 
@@ -16,8 +21,14 @@ export function PlaceDrawer() {
     () => db.places.where('tripId').equals(tripId).toArray(),
     [tripId],
   )
+  const destinations = useLiveQuery(
+    () => db.destinations.where('tripId').equals(tripId).toArray(),
+    [tripId],
+  )
 
   const [filter, setFilter] = useState<Filter>('all')
+  /** 어느 도시 기준으로 검색·등록할지. null이면 전체 보기 */
+  const [destId, setDestId] = useState<string | null>(null)
   const [pickMode, setPickMode] = useState(false)
   const [pending, setPending] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -37,12 +48,28 @@ export function PlaceDrawer() {
     )
   }
 
+  const cities = sortDestinations(destinations ?? [])
+  const activeDest = destId ? cities.find((d) => d.id === destId) : undefined
+  // 도시를 고르지 않았으면 첫 도시를 편향 기준으로 쓴다
+  const bias = activeDest
+    ? { lat: activeDest.lat, lng: activeDest.lng }
+    : defaultBias(cities)
+
   const all = places ?? []
-  const visible = filter === 'all' ? all : all.filter((p) => p.category === filter)
-  const counts = all.reduce<Record<string, number>>((acc, p) => {
+  const inCity = activeDest
+    ? all.filter((p) => p.destinationId === activeDest.id)
+    : all
+  const visible =
+    filter === 'all' ? inCity : inCity.filter((p) => p.category === filter)
+  const counts = inCity.reduce<Record<string, number>>((acc, p) => {
     acc[p.category] = (acc[p.category] ?? 0) + 1
     return acc
   }, {})
+  const cityCounts = new Map<string, number>()
+  for (const p of all) {
+    if (!p.destinationId) continue
+    cityCounts.set(p.destinationId, (cityCounts.get(p.destinationId) ?? 0) + 1)
+  }
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-5">
@@ -54,8 +81,8 @@ export function PlaceDrawer() {
           <h1 className="truncate text-xl font-semibold tracking-tight">
             {trip.title}
           </h1>
-          <p className="text-sm text-slate-500">
-            {trip.city} · 장소 {all.length}개
+          <p className="truncate text-sm text-slate-500">
+            {cities.map((c) => c.name).join(' → ') || '도시 없음'} · 장소 {all.length}개
           </p>
         </div>
         <Link
@@ -66,9 +93,32 @@ export function PlaceDrawer() {
         </Link>
       </header>
 
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip active={destId === null} onClick={() => setDestId(null)}>
+          전체
+        </Chip>
+        {cities.map((c) => (
+          <Chip key={c.id} active={destId === c.id} onClick={() => setDestId(c.id)}>
+            {c.name}
+            {cityCounts.get(c.id) ? ` ${cityCounts.get(c.id)}` : ''}
+          </Chip>
+        ))}
+        <Link
+          to={`/trip/${tripId}/cities`}
+          className="ml-auto text-xs text-slate-400 underline underline-offset-2"
+        >
+          도시 관리
+        </Link>
+      </div>
+
       <PlaceSearch
-        bias={{ lat: trip.lat, lng: trip.lng }}
-        placeholder="장소 검색 (숙소, 맛집, 관광지…)"
+        key={activeDest?.id ?? 'all'}
+        bias={bias}
+        placeholder={
+          activeDest
+            ? `${activeDest.name}에서 장소 검색`
+            : '장소 검색 (숙소, 맛집, 관광지…)'
+        }
         onSelect={async (p) => {
           const dup = p.googlePlaceId
             ? await findPlaceByGoogleId(tripId, p.googlePlaceId)
@@ -79,6 +129,7 @@ export function PlaceDrawer() {
           }
           const id = await addPlace({
             tripId,
+            destinationId: destinationForPlace(cities, activeDest, p),
             googlePlaceId: p.googlePlaceId,
             name: p.name,
             category: inferCategory(p.types),
@@ -108,8 +159,8 @@ export function PlaceDrawer() {
 
       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
         <PlacesMap
-          center={{ lat: trip.lat, lng: trip.lng }}
-          places={all}
+          center={bias ?? { lat: 0, lng: 0 }}
+          places={inCity}
           pickMode={pickMode}
           selectedId={selectedId}
           onSelect={setSelectedId}
@@ -134,6 +185,7 @@ export function PlaceDrawer() {
           onSave={async (name, category, note) => {
             const id = await addPlace({
               tripId,
+              destinationId: destinationForPlace(cities, activeDest, pending),
               name,
               category,
               lat: pending.lat,
@@ -159,7 +211,7 @@ export function PlaceDrawer() {
 
       {visible.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-400">
-          {all.length === 0
+          {inCity.length === 0
             ? '위에서 장소를 검색해 추가하세요.'
             : '이 카테고리에 장소가 없습니다.'}
         </p>

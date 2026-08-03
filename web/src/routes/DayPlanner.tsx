@@ -34,6 +34,7 @@ import {
   formatHHMM,
   type ScheduledItem,
 } from '../lib/schedule'
+import { destinationForDate, defaultBias } from '../lib/destinations'
 import { useLegCompute } from '../lib/useLegCompute'
 import { LegDetail } from '../components/LegDetail'
 import {
@@ -61,6 +62,10 @@ export function DayPlanner() {
   )
   const places = useLiveQuery(
     () => db.places.where('tripId').equals(tripId).toArray(),
+    [tripId],
+  )
+  const destinations = useLiveQuery(
+    () => db.destinations.where('tripId').equals(tripId).toArray(),
     [tripId],
   )
 
@@ -106,6 +111,14 @@ export function DayPlanner() {
     () => new Map((places ?? []).map((p) => [p.id, p])),
     [places],
   )
+
+  /** 그날 머무는 도시. 지도 중심과 화면 표시에 쓴다 */
+  const dayCity = dayDate
+    ? destinationForDate(destinations ?? [], dayDate)
+    : undefined
+  const mapCenter = dayCity
+    ? { lat: dayCity.lat, lng: dayCity.lng }
+    : defaultBias(destinations ?? [])
 
   const [adding, setAdding] = useState<'place' | 'activity' | null>(null)
   const [openLegId, setOpenLegId] = useState<string | null>(null)
@@ -181,6 +194,9 @@ export function DayPlanner() {
         <h1 className="truncate text-xl font-semibold tracking-tight">
           {trip.title}
         </h1>
+        {dayCity && (
+          <p className="text-sm text-slate-500">📍 {dayCity.name}</p>
+        )}
       </header>
 
       {/* 날짜 탭 */}
@@ -208,7 +224,7 @@ export function DayPlanner() {
             lines={legLines}
             selectedLegId={selectedLegId}
             onSelectLeg={setSelectedLegId}
-            center={{ lat: trip.lat, lng: trip.lng }}
+            center={mapCenter ?? { lat: 0, lng: 0 }}
           />
           {usedModes.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-900">

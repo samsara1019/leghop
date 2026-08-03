@@ -20,12 +20,6 @@ export type ItemKind = 'stop' | 'activity'
 export interface Trip {
   id: string
   title: string
-  city: string
-  /** 지도 초기 중심 + Places 검색 지역 편향에 쓴다 */
-  lat: number
-  lng: number
-  countryCode?: string
-  timezone?: string
   /** YYYY-MM-DD */
   startDate: string
   /** YYYY-MM-DD */
@@ -35,9 +29,31 @@ export interface Trip {
   updatedAt: number
 }
 
+/**
+ * 여행 중 머무는 도시. 한 여행에 여러 개 (바르셀로나 → 세비야 → 마요르카).
+ *
+ * **종료일을 두지 않는다.** 다음 목적지의 startDate가 곧 이전 목적지의 끝이다.
+ * 종료일을 따로 두면 기간이 겹치거나 빈 날이 생기고, 그 예외를 전부 다뤄야 한다.
+ */
+export interface Destination {
+  id: string
+  tripId: string
+  name: string
+  /** 지도 중심 + Places 검색 지역 편향 */
+  lat: number
+  lng: number
+  /** 이 도시에 머무는 첫날. YYYY-MM-DD */
+  startDate: string
+  order: number
+  countryCode?: string
+  timezone?: string
+}
+
 export interface Place {
   id: string
   tripId: string
+  /** 어느 도시의 장소인가. 마이그레이션 전 데이터에는 없을 수 있다 */
+  destinationId?: string
   /** Google place_id는 약관상 무기한 보관 가능 (DESIGN.md §7.1-1) */
   googlePlaceId?: string
   name: string
@@ -118,6 +134,7 @@ export interface Leg {
 
 const db = new Dexie('leghop') as Dexie & {
   trips: EntityTable<Trip, 'id'>
+  destinations: EntityTable<Destination, 'id'>
   places: EntityTable<Place, 'id'>
   days: EntityTable<Day, 'id'>
   items: EntityTable<Item, 'id'>
@@ -131,6 +148,42 @@ db.version(1).stores({
   items: 'id, dayId, placeId, [dayId+order]',
   legs: 'id, dayId, fromItemId, toItemId, [dayId+fromItemId]',
 })
+
+/** v2: 여러 도시를 도는 여행 지원. Trip의 city/lat/lng를 Destination으로 옮긴다. */
+db.version(2)
+  .stores({
+    destinations: 'id, tripId, startDate, [tripId+order]',
+    places: 'id, tripId, destinationId, category, googlePlaceId, [tripId+category]',
+  })
+  .upgrade(async (tx) => {
+    interface LegacyTrip {
+      id: string
+      city?: string
+      lat?: number
+      lng?: number
+      startDate: string
+    }
+    const trips = (await tx.table('trips').toArray()) as LegacyTrip[]
+    for (const t of trips) {
+      // 좌표가 없던 여행은 목적지를 만들 수 없다 — 사용자가 직접 추가하게 둔다
+      if (typeof t.lat !== 'number' || typeof t.lng !== 'number') continue
+      const id = newId()
+      await tx.table('destinations').add({
+        id,
+        tripId: t.id,
+        name: t.city ?? '목적지',
+        lat: t.lat,
+        lng: t.lng,
+        startDate: t.startDate,
+        order: 0,
+      })
+      await tx
+        .table('places')
+        .where('tripId')
+        .equals(t.id)
+        .modify({ destinationId: id })
+    }
+  })
 
 export { db }
 
