@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { db, type Leg, type Place } from '../db/schema'
+import { db, type Destination, type Leg, type Place, type PlaceCategory } from '../db/schema'
 import {
   addActivity,
   addStop,
@@ -25,7 +25,8 @@ import {
   reorderItems,
   updateItem,
 } from '../db/plannerRepo'
-import { CATEGORIES } from '../lib/categories'
+import { addPlace, findPlaceByGoogleId } from '../db/repo'
+import { CATEGORIES, CATEGORY_ORDER, inferCategory } from '../lib/categories'
 import { MODE_COLOR, MODE_EMOJI } from '../lib/directions'
 import {
   buildSchedule,
@@ -34,10 +35,18 @@ import {
   formatHHMM,
   type ScheduledItem,
 } from '../lib/schedule'
-import { destinationForDate, defaultBias } from '../lib/destinations'
+import {
+  defaultBias,
+  destinationForDate,
+  destinationForPlace,
+  sortDestinations,
+} from '../lib/destinations'
 import { useLegCompute } from '../lib/useLegCompute'
 import { useTripSync } from '../lib/useTripSync'
 import { LegDetail } from '../components/LegDetail'
+import { PlaceSearch } from '../components/PlaceSearch'
+import { Chip } from '../components/Chip'
+import type { ResolvedPlace } from '../lib/usePlacesAutocomplete'
 import {
   DayRouteMap,
   type DayLegLine,
@@ -122,6 +131,16 @@ export function DayPlanner() {
   const mapCenter = dayCity
     ? { lat: dayCity.lat, lng: dayCity.lng }
     : defaultBias(destinations ?? [])
+
+  const usedPlaceIds = useMemo(
+    () =>
+      new Set(
+        (items ?? [])
+          .map((i) => i.placeId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    [items],
+  )
 
   const [adding, setAdding] = useState<'place' | 'activity' | null>(null)
   const [openLegId, setOpenLegId] = useState<string | null>(null)
@@ -327,8 +346,37 @@ export function DayPlanner() {
       {adding === 'place' && day && (
         <PlacePicker
           places={places ?? []}
+          cities={sortDestinations(destinations ?? [])}
+          dayCity={dayCity}
+          usedPlaceIds={usedPlaceIds}
           onClose={() => setAdding(null)}
           onPick={async (placeId) => {
+            await addStop(day.id, placeId)
+            setAdding(null)
+          }}
+          onAddNew={async (p) => {
+            // 서랍에 이미 있는 장소면 다시 만들지 않고 그걸 쓴다
+            const dup = p.googlePlaceId
+              ? await findPlaceByGoogleId(tripId, p.googlePlaceId)
+              : undefined
+            const placeId =
+              dup?.id ??
+              (await addPlace({
+                tripId,
+                destinationId: destinationForPlace(
+                  sortDestinations(destinations ?? []),
+                  dayCity,
+                  p,
+                ),
+                googlePlaceId: p.googlePlaceId,
+                name: p.name,
+                category: inferCategory(p.types),
+                lat: p.lat,
+                lng: p.lng,
+                address: p.address,
+                openingHours: p.openingHours,
+                priceLevel: p.priceLevel,
+              }))
             await addStop(day.id, placeId)
             setAdding(null)
           }}
@@ -549,33 +597,150 @@ function LegRow({
 
 function PlacePicker({
   places,
+  cities,
+  dayCity,
+  usedPlaceIds,
   onPick,
+  onAddNew,
   onClose,
 }: {
   places: Place[]
+  cities: Destination[]
+  /** 이 날 머무는 도시. 검색 지역 편향과 기본 필터의 기준 */
+  dayCity?: Destination
+  usedPlaceIds: Set<string>
   onPick: (placeId: string) => void | Promise<void>
+  onAddNew: (place: ResolvedPlace) => void | Promise<void>
   onClose: () => void
 }) {
+  // 기본은 그날 도시로 좁힌다. 여러 도시를 도는 일정에서 세비야 날에
+  // 바르셀로나 맛집이 섞여 나오면 목록이 쓸모없어진다.
+  const [cityId, setCityId] = useState<string | null>(dayCity?.id ?? null)
+  const [category, setCategory] = useState<PlaceCategory | 'all'>('all')
+  const [keyword, setKeyword] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const activeCity = cityId ? cities.find((c) => c.id === cityId) : undefined
+  const bias = activeCity
+    ? { lat: activeCity.lat, lng: activeCity.lng }
+    : dayCity
+      ? { lat: dayCity.lat, lng: dayCity.lng }
+      : undefined
+
+  // 소속 도시가 없는 장소(도시 삭제로 풀렸거나 마이그레이션 이전 데이터)는
+  // 어느 도시를 골라도 보이게 둔다. 안 그러면 도시가 하나뿐인 여행에서
+  // '전체' 칩이 렌더되지 않아 영영 못 찾는다.
+  const inCity = cityId
+    ? places.filter((p) => p.destinationId === cityId || !p.destinationId)
+    : places
+  const counts = inCity.reduce<Record<string, number>>((acc, p) => {
+    acc[p.category] = (acc[p.category] ?? 0) + 1
+    return acc
+  }, {})
+
+  const kw = keyword.trim().toLowerCase()
+  const visible = inCity
+    .filter((p) => category === 'all' || p.category === category)
+    .filter(
+      (p) =>
+        !kw ||
+        p.name.toLowerCase().includes(kw) ||
+        (p.note ?? '').toLowerCase().includes(kw) ||
+        (p.address ?? '').toLowerCase().includes(kw),
+    )
+
   return (
     <Sheet title="장소 추가" onClose={onClose}>
-      {places.length === 0 ? (
+      <div className="mb-3">
+        <PlaceSearch
+          key={activeCity?.id ?? 'all'}
+          bias={bias}
+          placeholder={
+            activeCity ? `${activeCity.name}에서 새 장소 검색` : '새 장소 검색'
+          }
+          onSelect={async (p) => {
+            setBusy(true)
+            try {
+              await onAddNew(p)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        />
+        <p className="mt-1.5 text-xs text-slate-400">
+          검색해서 추가하면 장소 서랍에도 함께 등록됩니다.
+        </p>
+      </div>
+
+      {cities.length > 1 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {cities.map((c) => (
+            <Chip
+              key={c.id}
+              active={cityId === c.id}
+              onClick={() => setCityId(c.id)}
+            >
+              {c.name}
+              {c.id === dayCity?.id ? ' · 오늘' : ''}
+            </Chip>
+          ))}
+          <Chip active={cityId === null} onClick={() => setCityId(null)}>
+            전체
+          </Chip>
+        </div>
+      )}
+
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        <Chip active={category === 'all'} onClick={() => setCategory('all')}>
+          전체 {inCity.length}
+        </Chip>
+        {CATEGORY_ORDER.filter((c) => counts[c]).map((c) => (
+          <Chip key={c} active={category === c} onClick={() => setCategory(c)}>
+            {CATEGORIES[c].emoji} {CATEGORIES[c].label} {counts[c]}
+          </Chip>
+        ))}
+      </div>
+
+      {/* 항목이 적을 때 검색창이 둘이면 오히려 헷갈린다 */}
+      {inCity.length > 6 && (
+        <input
+          type="search"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="등록된 장소에서 찾기"
+          className="mb-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 dark:border-slate-700 dark:bg-slate-900"
+        />
+      )}
+
+      {visible.length === 0 ? (
         <p className="py-6 text-center text-sm text-slate-400">
-          장소 서랍이 비어 있습니다. 먼저 장소를 등록하세요.
+          {places.length === 0
+            ? '장소 서랍이 비어 있습니다. 위에서 검색해 추가하세요.'
+            : '조건에 맞는 장소가 없습니다. 위에서 검색하면 새로 추가됩니다.'}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
-          {places.map((p) => {
+          {visible.map((p) => {
             const cat = CATEGORIES[p.category]
+            const used = usedPlaceIds.has(p.id)
             return (
               <li key={p.id}>
                 <button
                   type="button"
+                  disabled={busy}
                   onClick={() => void onPick(p.id)}
-                  className="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm dark:border-slate-800"
+                  className="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm disabled:opacity-50 dark:border-slate-800"
                 >
                   <span>{cat.emoji}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate">{p.name}</span>
+                    <span className="block truncate">
+                      {p.name}
+                      {used && (
+                        <span className="ml-1.5 text-xs text-slate-400">
+                          오늘 일정에 있음
+                        </span>
+                      )}
+                    </span>
                     {p.note && (
                       <span className="block truncate text-xs text-slate-500">
                         {p.note}

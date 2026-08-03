@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Place, type PlaceCategory } from '../db/schema'
@@ -6,6 +6,7 @@ import { addPlace, deletePlace, findPlaceByGoogleId, updatePlace } from '../db/r
 import { CATEGORIES, CATEGORY_ORDER, inferCategory } from '../lib/categories'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { PlacesMap } from '../components/PlacesMap'
+import { Chip } from '../components/Chip'
 import {
   defaultBias,
   destinationForPlace,
@@ -423,29 +424,5 @@ function PendingPlaceForm({
         </button>
       </div>
     </div>
-  )
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-xs ${
-        active
-          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-      }`}
-    >
-      {children}
-    </button>
   )
 }
