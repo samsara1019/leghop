@@ -325,6 +325,8 @@ Places / Directions / Maps JS는 **브라우저에서 JS API 라이브러리로 
 | 현지에서 데이터가 안 터지면 지도를 못 봄 | turn-by-turn 텍스트 + 주소 + 좌표를 크게 보여주는 것으로 대체 (§3.4). 로밍/eSIM 사용을 전제로 하는 설계임을 명시 |
 | iOS Safari의 IndexedDB 삭제 | `storage.persist()` + 홈 화면 설치 유도 |
 | 텍스트 파서의 장소 매칭 오류 | 자동 확정 금지. 항상 후보 3개 제시 후 사용자 확인 |
+| **Cloudflare 배포본에서 Gemini가 지역 제한에 막힌다** | 한국에서 호출해도 Worker가 홍콩(HKG) 콜로에서 실행돼 `User location is not supported`(400)가 난다. Smart Placement로도 안 바뀐다. 로컬 Worker는 정상이므로 개발은 지장 없고, 배포 시에는 지역 고정이 가능한 곳(Vercel `iad1` / Cloud Run `us-central1`)으로 프록시를 옮긴다. Gemini 실패 시 규칙 기반 파서로 자동 대체되므로 기능은 유지된다 |
+| Gemini 무료 티어 분당 20요청 | 붙여넣기 1회당 1요청이라 평소엔 여유. 초과 시 규칙 기반으로 대체 |
 
 ---
 

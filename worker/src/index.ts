@@ -116,6 +116,16 @@ function corsHeaders(origin: string | null, env: Env): Record<string, string> {
   return headers
 }
 
+/**
+ * Worker가 실제로 돌아간 위치. Gemini는 요청이 나가는 지역이 미지원이면
+ * `User location is not supported`로 400을 낸다. 그 판정이 콜로 위치에
+ * 달려 있어서, 이 값 없이는 원인을 좁힐 수 없다.
+ */
+function edge(request: Request): { colo?: string; country?: string } {
+  const cf = (request as Request & { cf?: { colo?: string; country?: string } }).cf
+  return { colo: cf?.colo, country: cf?.country }
+}
+
 function json(body: unknown, status: number, extra: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -134,7 +144,11 @@ export default {
     }
 
     if (url.pathname === '/health') {
-      return json({ ok: true, hasKey: Boolean(env.GEMINI_API_KEY) }, 200, cors)
+      return json(
+        { ok: true, hasKey: Boolean(env.GEMINI_API_KEY), ...edge(request) },
+        200,
+        cors,
+      )
     }
 
     if (url.pathname !== '/parse') {
@@ -224,7 +238,12 @@ export default {
     if (!upstream.ok) {
       const detail = await upstream.text()
       return json(
-        { error: 'upstream_error', status: upstream.status, detail },
+        {
+          error: 'upstream_error',
+          status: upstream.status,
+          detail,
+          meta: { model, ...edge(request) },
+        },
         502,
         cors,
       )
@@ -244,6 +263,7 @@ export default {
       model,
       finishReason: candidate?.finishReason,
       usage: payload.usageMetadata,
+      ...edge(request),
     }
 
     if (!raw) {

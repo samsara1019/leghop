@@ -4,6 +4,21 @@ import { supabase } from './supabase'
 import { hasSupabase } from './env'
 import { AuthContext, type AuthState } from './authContext'
 
+/**
+ * 로그인 후 돌아올 현재 주소.
+ *
+ * 이전 콜백이 남긴 파라미터를 지운다. 실패한 로그인을 다시 시도할 때
+ * `?error=...`를 그대로 들고 돌아가면 성공해도 에러 화면이 보인다.
+ */
+function returnUrl() {
+  const url = new URL(window.location.href)
+  url.hash = ''
+  for (const key of ['code', 'error', 'error_code', 'error_description']) {
+    url.searchParams.delete(key)
+  }
+  return url.toString()
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   // Supabase가 없으면 기다릴 게 없다
@@ -36,8 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            // 로그인 후 돌아올 곳. Supabase 콘솔의 Redirect URLs에 등록돼 있어야 한다
-            redirectTo: window.location.origin,
+            // 열고 있던 페이지로 돌아온다. origin만 넘기면 공유 링크로 들어온
+            // 사람이 로그인 후 여행이 아니라 목록으로 떨어진다.
+            // 여기 값이 Supabase 콘솔의 Redirect URLs에 없으면 Supabase는
+            // 조용히 Site URL로 보낸다 — 기본값이 localhost:3000이다.
+            redirectTo: returnUrl(),
           },
         })
         if (error) throw error

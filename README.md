@@ -64,8 +64,18 @@ Authentication → Providers → Google 을 켜고, Google Cloud 콘솔에서 OA
 
 - Google Cloud 쪽 **승인된 리디렉션 URI**:
   `https://<프로젝트-ref>.supabase.co/auth/v1/callback`
-- Supabase 쪽 **Redirect URLs** (Authentication → URL Configuration):
-  `http://localhost:5173` 과 배포 도메인
+
+Authentication → URL Configuration 에서 두 개를 모두 채운다.
+
+| 항목 | 값 |
+|---|---|
+| **Site URL** | 배포 도메인 (`https://<도메인>`) |
+| **Redirect URLs** | `https://<도메인>/**` 와 `http://localhost:5173/**` |
+
+> `/**` 를 빼면 안 된다. 앱은 열고 있던 페이지(`/trip/<id>` 등)로 돌아오게
+> 요청하는데, 허용목록에 정확히 일치하는 항목이 없으면 Supabase는 에러 대신
+> **Site URL로 조용히 보낸다.** Site URL 기본값이 `http://localhost:3000`이라,
+> 배포 후 공유 링크로 로그인했을 때 localhost로 튕기면 십중팔구 이 설정이다.
 
 **4. 키 복사**
 
@@ -171,6 +181,34 @@ npm run deploy
 
 배포 후 `wrangler.toml`의 `ALLOWED_ORIGINS`를 실제 도메인으로 바꾼다.
 이 목록에 없는 출처의 요청은 403으로 끊긴다 — CORS는 브라우저만 막아주므로 서버에서도 확인한다.
+
+### ⚠️ Cloudflare 배포본에서는 Gemini가 막힌다
+
+한국에서 호출해도 Cloudflare가 **홍콩(HKG) 콜로**에서 Worker를 실행하는데,
+홍콩은 Gemini API 미지원 지역이라 이렇게 돌아온다:
+
+```
+400 FAILED_PRECONDITION — User location is not supported for the API use.
+```
+
+6회 연속 HKG였고, `[placement] mode = "smart"` 로도 바뀌지 않았다
+(Smart Placement는 지연 최적화용이며 지역 규제 회피 수단이 아니다).
+
+| 상황 | 대응 |
+|---|---|
+| 로컬 개발 | `VITE_WORKER_URL=http://localhost:8787` — 한국에서 직접 나가므로 정상 |
+| 웹앱 배포 | 지역 고정이 가능한 곳으로 프록시를 옮긴다 (Vercel Functions `region: 'iad1'`, Cloud Run `us-central1`) |
+
+Worker 응답의 `meta.colo`로 실행 위치를 확인할 수 있다. 이 값이 HKG면 이 문제다.
+
+앱은 Gemini 실패 시 **규칙 기반 파서로 자동 대체**되므로 붙여넣기 기능 자체는
+계속 동작한다. 정확도만 떨어진다.
+
+### 무료 티어 한도
+
+`gemini-3.6-flash` 무료 티어는 **분당 20요청**이다. 붙여넣기 1회당 1요청이라
+평소엔 넉넉하지만, 연속 테스트 시 `RESOURCE_EXHAUSTED`가 난다.
+이 경우도 규칙 기반으로 대체된다.
 
 ---
 
