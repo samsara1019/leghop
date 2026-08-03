@@ -1,0 +1,15 @@
+name = "leghop-worker"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+[observability]
+enabled = true
+
+[vars]
+GEMINI_MODEL = "gemini-3.6-flash"
+# 배포 시 실제 도메인으로 교체할 것
+ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+
+# GEMINI_API_KEY는 vars에 넣지 않는다. 아래로 등록:
+#   npx wrangler secret put GEMINI_API_KEY
+# 로컬 개발은 .dev.vars 파일 사용 (git에 올라가지 않음)

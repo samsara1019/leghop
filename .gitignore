@@ -1,0 +1,19 @@
+node_modules/
+dist/
+dist-ssr/
+.wrangler/
+
+# 비밀 — 절대 커밋 금지
+.env
+.env.local
+.env.*.local
+.dev.vars
+.dev.vars.*
+!.env.example
+!.dev.vars.example
+
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/

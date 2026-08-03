@@ -1,0 +1,4 @@
+# 이 파일을 .dev.vars 로 복사한 뒤 값을 채운다. .dev.vars는 git에 올라가지 않는다.
+# 배포 환경에는 `npx wrangler secret put GEMINI_API_KEY` 로 등록할 것.
+
+GEMINI_API_KEY=

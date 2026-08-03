@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+
+  /* leg 표시색 — 이동 수단별로 일관되게 쓴다 */
+  --color-mode-transit: oklch(0.62 0.19 258);
+  --color-mode-walking: oklch(0.65 0.16 155);
+  --color-mode-driving: oklch(0.68 0.17 65);
+  --color-mode-bicycling: oklch(0.63 0.17 320);
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply dark:bg-slate-950 dark:text-slate-100;
+  /* 모바일에서 주소창 높이 변화에 안 흔들리게 */
+  overscroll-behavior-y: none;
+}
+
+/* 구글 지도 컨테이너가 부모 높이를 못 받으면 0px로 접힌다 */
+.gm-style {
+  font-family: inherit;
+}
