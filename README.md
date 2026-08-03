@@ -207,6 +207,16 @@ curl https://<프로젝트>.vercel.app/api/health
 VITE_PARSER_URL=https://<프로젝트>.vercel.app/api
 ```
 
+### 배포 주소
+
+| | 주소 |
+|---|---|
+| 웹앱 | `https://leghop.vercel.app` (Vercel 프로젝트 `leghop`, Root Directory `./web`) |
+| Gemini 프록시 | `https://worker-three-jet.vercel.app/api` (Vercel 프로젝트 `worker`) |
+
+> 프록시 프로젝트 이름이 `worker`인 것은 Cloudflare에서 옮겨오던 중에 생긴
+> 잔재다. 대시보드에서 이름을 바꾸면 환경변수는 유지되고 주소만 바뀐다.
+
 ### 웹앱 배포 후 반드시 할 것
 
 `ALLOWED_ORIGINS` 환경변수에 실제 도메인을 추가한다. 없으면 배포된 웹에서
@@ -216,6 +226,8 @@ VITE_PARSER_URL=https://<프로젝트>.vercel.app/api
 npx vercel env add ALLOWED_ORIGINS production
 # 값: https://실제도메인,http://localhost:5173
 ```
+
+이미 `https://leghop.vercel.app` 이 등록돼 있다. 도메인이 바뀌면 갱신할 것.
 
 ### 무료 티어 한도
 
@@ -242,6 +254,28 @@ npx vercel env add ALLOWED_ORIGINS production
 | `npm run dev` | 로컬 프록시 (`vercel dev`, 8787 포트) |
 | `npm run typecheck` | 타입 검사 |
 | `npm run deploy` | Vercel 프로덕션 배포 |
+
+---
+
+## 웹앱 배포 (Vercel)
+
+프로젝트 `leghop`, **Root Directory = `./web`** (모노레포).
+
+`web/vercel.json`이 두 가지를 처리한다:
+
+- **SPA 폴백** — 이게 없으면 `/trip/<id>/plan` 같은 딥링크와 새로고침이 404가 된다.
+  더 나쁜 건 **로그인이 깨지는 것**이다. OAuth는 열고 있던 페이지로 돌아오도록
+  요청하는데, 그 경로가 404면 로그인을 마칠 수 없다. 공유 링크도 같은 이유로 죽는다.
+- **`sw.js` 캐시 무효화** — Service Worker가 캐시되면 앱 업데이트가 사용자에게
+  전달되지 않는다.
+
+배포 전 콘솔에서 세 곳을 함께 맞춰야 한다. 하나라도 빠지면 배포본에서만 조용히 깨진다.
+
+| 곳 | 넣을 값 |
+|---|---|
+| Vercel `leghop` 환경변수 | `VITE_GOOGLE_MAPS_API_KEY`, `VITE_GOOGLE_MAPS_MAP_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PARSER_URL` |
+| Google Maps 키 리퍼러 제한 | `https://leghop.vercel.app/*` 추가 |
+| Supabase URL Configuration | Site URL = `https://leghop.vercel.app`, Redirect URLs에 `https://leghop.vercel.app/**` |
 
 ---
 
