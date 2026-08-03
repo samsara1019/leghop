@@ -6,6 +6,23 @@ import {
   type PlaceCategory,
   type Trip,
 } from './schema'
+import {
+  assertWritable,
+  currentUserId,
+  deleteDestinationRemote,
+  deletePlaceRemote,
+  deleteTripRemote,
+  insertTrip,
+  upsertDestination,
+  upsertPlace,
+} from './remote'
+
+/**
+ * 모든 변경은 **서버에 먼저 쓰고, 성공하면 로컬 미러에 반영**한다.
+ *
+ * 순서가 중요하다. 로컬을 먼저 고치면 서버 쓰기가 실패했을 때 화면에는
+ * 반영됐는데 실제로는 저장되지 않은 상태가 된다 — 사용자가 알 방법이 없다.
+ */
 
 // ---------- Trip ----------
 
@@ -18,34 +35,43 @@ export interface NewTripInput {
 }
 
 export async function createTrip(input: NewTripInput): Promise<string> {
+  assertWritable()
+  const ownerId = await currentUserId()
   const now = Date.now()
-  const tripId = newId()
-  await db.transaction('rw', db.trips, db.destinations, async () => {
-    const trip: Trip = {
-      id: tripId,
-      title: input.title,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      createdAt: now,
-      updatedAt: now,
-    }
+  const trip: Trip = {
+    id: newId(),
+    title: input.title,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const dest: Destination = {
+    id: newId(),
+    tripId: trip.id,
+    name: input.firstCity.name,
+    lat: input.firstCity.lat,
+    lng: input.firstCity.lng,
+    startDate: input.startDate,
+    order: 0,
+  }
+
+  // owner 멤버십은 서버 트리거가 붙인다 (0001_init.sql: add_owner_as_member)
+  await insertTrip(trip, ownerId)
+  await upsertDestination(dest)
+
+  await db.transaction('rw', [db.trips, db.destinations], async () => {
     await db.trips.add(trip)
-    await db.destinations.add({
-      id: newId(),
-      tripId,
-      name: input.firstCity.name,
-      lat: input.firstCity.lat,
-      lng: input.firstCity.lng,
-      startDate: input.startDate,
-      order: 0,
-    })
+    await db.destinations.add(dest)
   })
-  return tripId
+  return trip.id
 }
 
-/** 여행을 지우면 딸린 것도 전부 지운다. 고아 레코드가 남으면 용량만 먹는다. */
+/** 소유자만 지울 수 있다 (RLS). 서버에서 딸린 것들이 cascade로 함께 지워진다. */
 export async function deleteTrip(tripId: string): Promise<void> {
-  // 테이블이 5개를 넘으면 가변 인자 오버로드가 없다 — 배열 형태를 쓴다
+  assertWritable()
+  await deleteTripRemote(tripId)
+
   await db.transaction(
     'rw',
     [db.trips, db.destinations, db.places, db.days, db.items, db.legs],
@@ -71,30 +97,33 @@ export async function addDestination(
   city: { name: string; lat: number; lng: number },
   startDate: string,
 ): Promise<string> {
-  const id = newId()
-  await db.transaction('rw', db.destinations, async () => {
-    const existing = await db.destinations.where('tripId').equals(tripId).count()
-    await db.destinations.add({
-      id,
-      tripId,
-      name: city.name,
-      lat: city.lat,
-      lng: city.lng,
-      startDate,
-      order: existing,
-    })
-    await renumber(tripId)
-  })
-  return id
+  assertWritable()
+  const count = await db.destinations.where('tripId').equals(tripId).count()
+  const dest: Destination = {
+    id: newId(),
+    tripId,
+    name: city.name,
+    lat: city.lat,
+    lng: city.lng,
+    startDate,
+    order: count,
+  }
+  await upsertDestination(dest)
+  await db.destinations.add(dest)
+  await renumber(tripId)
+  return dest.id
 }
 
 export async function updateDestination(
   id: string,
   patch: Partial<Pick<Destination, 'name' | 'lat' | 'lng' | 'startDate'>>,
 ): Promise<void> {
+  assertWritable()
   const dest = await db.destinations.get(id)
   if (!dest) return
-  await db.destinations.update(id, patch)
+  const next = { ...dest, ...patch }
+  await upsertDestination(next)
+  await db.destinations.put(next)
   if (patch.startDate) await renumber(dest.tripId)
 }
 
@@ -108,21 +137,30 @@ export async function deleteDestination(id: string): Promise<'ok' | 'last'> {
   const count = await db.destinations.where('tripId').equals(dest.tripId).count()
   if (count <= 1) return 'last'
 
-  await db.transaction('rw', db.destinations, db.places, async () => {
+  assertWritable()
+  // 서버에서 places.destination_id는 on delete set null이므로 장소는 살아남는다
+  await deleteDestinationRemote(id)
+
+  await db.transaction('rw', [db.destinations, db.places], async () => {
     await db.destinations.delete(id)
-    // 이 도시에 매인 장소는 남기고 소속만 푼다 — 사용자가 넣은 데이터를 지우지 않는다
-    await db.places.where('destinationId').equals(id).modify({ destinationId: undefined })
-    await renumber(dest.tripId)
+    await db.places
+      .where('destinationId')
+      .equals(id)
+      .modify({ destinationId: undefined })
   })
+  await renumber(dest.tripId)
   return 'ok'
 }
 
 async function renumber(tripId: string): Promise<void> {
   const all = await db.destinations.where('tripId').equals(tripId).toArray()
   all.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.order - b.order)
-  await Promise.all(
-    all.map((d, i) => (d.order === i ? null : db.destinations.update(d.id, { order: i }))),
-  )
+  const changed = all
+    .map((d, i) => ({ ...d, order: i }))
+    .filter((d, i) => all[i].order !== d.order)
+  if (changed.length === 0) return
+  await Promise.all(changed.map((d) => upsertDestination(d)))
+  await db.destinations.bulkPut(changed)
 }
 
 // ---------- Place ----------
@@ -143,6 +181,7 @@ export interface NewPlaceInput {
 }
 
 export async function addPlace(input: NewPlaceInput): Promise<string> {
+  assertWritable()
   const place: Place = {
     id: newId(),
     tripId: input.tripId,
@@ -160,6 +199,7 @@ export async function addPlace(input: NewPlaceInput): Promise<string> {
     tags: [],
     snapshotAt: Date.now(),
   }
+  await upsertPlace(place)
   await db.places.add(place)
   return place.id
 }
@@ -168,11 +208,30 @@ export async function updatePlace(
   id: string,
   patch: Partial<Omit<Place, 'id' | 'tripId'>>,
 ): Promise<void> {
-  await db.places.update(id, patch)
+  assertWritable()
+  const cur = await db.places.get(id)
+  if (!cur) return
+  const next = { ...cur, ...patch }
+  await upsertPlace(next)
+  await db.places.put(next)
 }
 
 export async function deletePlace(id: string): Promise<void> {
-  await db.places.delete(id)
+  assertWritable()
+  await deletePlaceRemote(id)
+  // 서버에서 이 장소를 쓰던 일정 항목이 cascade로 지워진다. 미러도 맞춰준다.
+  await db.transaction('rw', [db.places, db.items, db.legs], async () => {
+    const items = await db.items.where('placeId').equals(id).toArray()
+    for (const it of items) {
+      await db.legs
+        .where('dayId')
+        .equals(it.dayId)
+        .filter((l) => l.fromItemId === it.id || l.toItemId === it.id)
+        .delete()
+    }
+    await db.items.bulkDelete(items.map((i) => i.id))
+    await db.places.delete(id)
+  })
 }
 
 /** 같은 여행에 같은 장소를 두 번 넣는 걸 막는다 */

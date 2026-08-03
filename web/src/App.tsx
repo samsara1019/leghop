@@ -1,25 +1,43 @@
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { MapsProvider } from './components/MapsProvider'
+import { AuthProvider } from './lib/auth'
+import { AuthGate } from './components/AuthGate'
+import { OfflineBanner } from './components/OfflineBanner'
 import { TripList } from './routes/TripList'
 import { PlaceDrawer } from './routes/PlaceDrawer'
 import { DayPlanner } from './routes/DayPlanner'
 import { PasteImport } from './routes/PasteImport'
 import { Destinations } from './routes/Destinations'
+import { Share } from './routes/Share'
 import { Debug } from './routes/Debug'
 
 export default function App() {
   return (
-    <MapsProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<TripList />} />
-          <Route path="/trip/:tripId" element={<PlaceDrawer />} />
-          <Route path="/trip/:tripId/plan" element={<DayPlanner />} />
-          <Route path="/trip/:tripId/import" element={<PasteImport />} />
-          <Route path="/trip/:tripId/cities" element={<Destinations />} />
-          <Route path="/debug" element={<Debug />} />
-        </Routes>
-      </BrowserRouter>
-    </MapsProvider>
+    <AuthProvider>
+      <MapsProvider>
+        <BrowserRouter>
+          <OfflineBanner />
+          <Routes>
+            {/* 환경 점검은 로그인 없이도 봐야 한다 — 설정이 틀렸을 때 확인할 곳 */}
+            <Route path="/debug" element={<Debug />} />
+            <Route
+              path="*"
+              element={
+                <AuthGate>
+                  <Routes>
+                    <Route path="/" element={<TripList />} />
+                    <Route path="/trip/:tripId" element={<PlaceDrawer />} />
+                    <Route path="/trip/:tripId/plan" element={<DayPlanner />} />
+                    <Route path="/trip/:tripId/import" element={<PasteImport />} />
+                    <Route path="/trip/:tripId/cities" element={<Destinations />} />
+                    <Route path="/trip/:tripId/share" element={<Share />} />
+                  </Routes>
+                </AuthGate>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
+      </MapsProvider>
+    </AuthProvider>
   )
 }

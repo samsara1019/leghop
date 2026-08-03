@@ -36,6 +36,7 @@ import {
 } from '../lib/schedule'
 import { destinationForDate, defaultBias } from '../lib/destinations'
 import { useLegCompute } from '../lib/useLegCompute'
+import { useTripSync } from '../lib/useTripSync'
 import { LegDetail } from '../components/LegDetail'
 import {
   DayRouteMap,
@@ -49,6 +50,8 @@ export function DayPlanner() {
 
   // Day 생성은 쓰기라서 liveQuery 안에서 하면 재실행 루프가 돈다. 효과로 분리하고,
   // 의존성은 원시값만 둔다 — trip 객체는 갱신마다 새 참조가 되어 효과가 계속 돈다.
+  useTripSync(tripId)
+
   const tripStart = trip?.startDate
   const tripEnd = trip?.endDate
   useEffect(() => {

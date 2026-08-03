@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { MapPanel } from '../components/MapPanel'
+import { SupabaseCheck } from '../components/SupabaseCheck'
 import { db } from '../db/schema'
 import {
   GOOGLE_MAPS_MAP_ID,
@@ -114,8 +115,12 @@ export function Debug() {
     },
     {
       label: 'Gemini Worker',
-      state: hasWorker ? 'ok' : 'warn',
-      detail: hasWorker ? WORKER_URL : '없음 — 텍스트 파서(P3)만 비활성',
+      state: hasWorker ? 'ok' : WORKER_URL ? 'fail' : 'warn',
+      detail: hasWorker
+        ? WORKER_URL
+        : WORKER_URL
+          ? 'VITE_WORKER_URL이 URL이 아닙니다. Worker 주소(예: http://localhost:8787)를 넣어야 하며, Gemini 키는 worker/.dev.vars에 둡니다'
+          : '없음 — 텍스트 파서(P3)만 비활성',
     },
     dbCheck,
     persisted,
@@ -129,6 +134,15 @@ export function Debug() {
           P0 · 환경 점검
         </p>
       </header>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="mb-3 text-sm font-medium text-slate-500 dark:text-slate-400">
+          Supabase 인증
+        </h2>
+        <ul className="flex flex-col gap-2.5">
+          <SupabaseCheck />
+        </ul>
+      </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="mb-3 text-sm font-medium text-slate-500 dark:text-slate-400">

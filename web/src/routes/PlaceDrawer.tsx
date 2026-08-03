@@ -11,6 +11,7 @@ import {
   destinationForPlace,
   sortDestinations,
 } from '../lib/destinations'
+import { useTripSync } from '../lib/useTripSync'
 
 type Filter = PlaceCategory | 'all'
 
@@ -25,6 +26,9 @@ export function PlaceDrawer() {
     () => db.destinations.where('tripId').equals(tripId).toArray(),
     [tripId],
   )
+
+  // 화면을 열 때·창으로 돌아올 때 서버에서 다시 받는다
+  useTripSync(tripId)
 
   const [filter, setFilter] = useState<Filter>('all')
   /** 어느 도시 기준으로 검색·등록할지. null이면 전체 보기 */
@@ -85,12 +89,20 @@ export function PlaceDrawer() {
             {cities.map((c) => c.name).join(' → ') || '도시 없음'} · 장소 {all.length}개
           </p>
         </div>
-        <Link
-          to={`/trip/${tripId}/plan`}
-          className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
-        >
-          일정 짜기 →
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            to={`/trip/${tripId}/share`}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+          >
+            공유
+          </Link>
+          <Link
+            to={`/trip/${tripId}/plan`}
+            className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+          >
+            일정 짜기 →
+          </Link>
+        </div>
       </header>
 
       <div className="flex flex-wrap items-center gap-1.5">

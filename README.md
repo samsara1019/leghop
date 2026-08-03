@@ -7,9 +7,15 @@
 ```
 leghop/
 ├── DESIGN.md      설계 문서 (읽고 시작할 것)
+├── supabase/      DB 스키마 · RLS 정책
 ├── web/           React + Vite PWA
 └── worker/        Cloudflare Worker — Gemini 중계 전용
 ```
+
+**서버가 정본이다.** Supabase(Postgres)에 저장하고, 브라우저의 IndexedDB는
+오프라인에서 일정을 꺼내 보기 위한 **읽기 전용 사본**이다. 수정은 온라인에서만
+된다 — 오프라인 쓰기를 허용하면 두 사람이 같은 일정을 고쳤을 때 충돌 해결이
+필요해지고, 그 복잡도를 피하기로 결정했다 (`DESIGN.md` §5).
 
 ---
 
@@ -34,6 +40,46 @@ npm run dev                  # http://localhost:5173
 ```
 
 키 없이 실행해도 앱은 뜬다. 지도 자리에 설정 안내가 대신 표시된다.
+
+---
+
+## Supabase 설정
+
+**1. 프로젝트 생성**
+
+[Supabase 콘솔](https://supabase.com/dashboard)에서 프로젝트를 만든다.
+
+**2. 스키마 적용**
+
+SQL Editor에 [`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql)을
+그대로 붙여넣고 Run. 테이블·RLS 정책·트리거가 한 번에 만들어진다.
+
+> 이 파일은 여러 번 실행해도 안전하게 쓰여 있다 (`create ... if not exists`,
+> `drop policy if exists`). 수정 후 다시 돌려도 된다.
+
+**3. Google 로그인 활성화**
+
+Authentication → Providers → Google 을 켜고, Google Cloud 콘솔에서 OAuth
+클라이언트를 만들어 Client ID / Secret 을 넣는다.
+
+- Google Cloud 쪽 **승인된 리디렉션 URI**:
+  `https://<프로젝트-ref>.supabase.co/auth/v1/callback`
+- Supabase 쪽 **Redirect URLs** (Authentication → URL Configuration):
+  `http://localhost:5173` 과 배포 도메인
+
+**4. 키 복사**
+
+Project Settings → API 에서 `Project URL` 과 `anon public` 키를 `web/.env` 에 넣는다.
+
+> `anon` 키는 브라우저에 노출되는 공개 키다. 실제 방어선은 RLS 정책이다.
+> **`service_role` 키는 절대 프론트엔드에 넣지 말 것** — RLS를 전부 우회한다.
+
+### 공유 동작 방식
+
+- 여행 생성자가 owner, 초대받은 사람이 editor다. 둘 다 수정할 수 있고 **삭제는 owner만** 가능하다
+- 초대는 이메일로 한다. 아직 가입하지 않은 사람도 초대해두면, 같은 이메일로 가입하는 순간 트리거가 참여시킨다
+- 인원 상한은 `trips.max_members`(기본 2)다. **SQL 수정 없이 컬럼 값만 올리면** 3명 이상으로 늘어난다
+- `role`에 `viewer`가 이미 정의돼 있어서, 보기 전용을 붙일 때 마이그레이션이 필요 없다
 
 ---
 
