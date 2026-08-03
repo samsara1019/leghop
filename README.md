@@ -9,7 +9,7 @@ leghop/
 ├── DESIGN.md      설계 문서 (읽고 시작할 것)
 ├── supabase/      DB 스키마 · RLS 정책
 ├── web/           React + Vite PWA
-└── worker/        Cloudflare Worker — Gemini 중계 전용
+└── proxy/         Vercel Functions — Gemini 중계 전용
 ```
 
 **서버가 정본이다.** Supabase(Postgres)에 저장하고, 브라우저의 IndexedDB는
@@ -25,7 +25,7 @@ leghop/
   (전역 기본값은 v18이라 매번 `nvm use`가 필요하다)
 - Google Cloud 계정
 - Google AI Studio 계정 (Gemini — P3부터 필요, P0에서는 없어도 됨)
-- Cloudflare 계정 (Worker 배포 — P3부터 필요)
+- Vercel 계정 (Gemini 프록시 배포 — 붙여넣기 파서에만 필요)
 
 ---
 
@@ -140,75 +140,87 @@ API별 일일 쿼터 상한도 함께 설정하면 사고를 막을 수 있다.
 ```bash
 VITE_GOOGLE_MAPS_API_KEY=AIza...
 VITE_GOOGLE_MAPS_MAP_ID=          # P1부터
-VITE_WORKER_URL=                  # P3부터
+VITE_PARSER_URL=                  # Gemini 프록시 (선택)
 ```
 
 dev 서버를 재시작해야 반영된다.
 
 ---
 
-## Worker (P3부터)
+## Gemini 프록시 (`proxy/`)
 
-Gemini 키를 숨기는 용도. P0~P2에서는 없어도 된다.
+Gemini 키를 감추는 용도. 붙여넣기 파서의 **산문 경로**에만 쓰인다.
+없어도 앱은 동작하고 규칙 기반 파서로 대체된다.
 
-```bash
-cd worker
-npm install
-cp .dev.vars.example .dev.vars    # GEMINI_API_KEY 채우기
-npm run dev                       # http://localhost:8787
-```
-
-키는 [Google AI Studio](https://aistudio.google.com/apikey)에서 발급한다.
-
-동작 확인:
-
-```bash
-curl http://localhost:8787/health
-
-curl -X POST http://localhost:8787/parse \
-  -H 'Content-Type: application/json' \
-  -H 'Origin: http://localhost:5173' \
-  -d '{"text":"바르셀로나 공항 도착 후 입국 심사 및 짐 찾기\n공항버스로 시내 이동\n라 플라우타에서 꿀대구 먹기","cityHint":"Barcelona"}'
-```
-
-배포:
-
-```bash
-npx wrangler login
-npx wrangler secret put GEMINI_API_KEY
-npm run deploy
-```
-
-배포 후 `wrangler.toml`의 `ALLOWED_ORIGINS`를 실제 도메인으로 바꾼다.
-이 목록에 없는 출처의 요청은 403으로 끊긴다 — CORS는 브라우저만 막아주므로 서버에서도 확인한다.
-
-### ⚠️ Cloudflare 배포본에서는 Gemini가 막힌다
+### 왜 Vercel인가 — Cloudflare Workers는 쓸 수 없다
 
 한국에서 호출해도 Cloudflare가 **홍콩(HKG) 콜로**에서 Worker를 실행하는데,
-홍콩은 Gemini API 미지원 지역이라 이렇게 돌아온다:
+홍콩은 Gemini API 미지원 지역이라 이렇게 막힌다:
 
 ```
 400 FAILED_PRECONDITION — User location is not supported for the API use.
 ```
 
-6회 연속 HKG였고, `[placement] mode = "smart"` 로도 바뀌지 않았다
+6회 연속 HKG였고 `[placement] mode = "smart"` 로도 바뀌지 않았다
 (Smart Placement는 지연 최적화용이며 지역 규제 회피 수단이 아니다).
 
-| 상황 | 대응 |
-|---|---|
-| 로컬 개발 | `VITE_WORKER_URL=http://localhost:8787` — 한국에서 직접 나가므로 정상 |
-| 웹앱 배포 | 지역 고정이 가능한 곳으로 프록시를 옮긴다 (Vercel Functions `region: 'iad1'`, Cloud Run `us-central1`) |
+Vercel Functions는 **Node 런타임에서 `regions`로 실행 지역을 고정**할 수 있다.
+`vercel.json`에 `"regions": ["iad1"]`(미국 동부)로 못박아 뒀다.
+**Edge 런타임을 쓰면 지역 고정이 안 되므로 같은 문제가 재현된다** — 바꾸지 말 것.
 
-Worker 응답의 `meta.colo`로 실행 위치를 확인할 수 있다. 이 값이 HKG면 이 문제다.
+### 로컬
 
-앱은 Gemini 실패 시 **규칙 기반 파서로 자동 대체**되므로 붙여넣기 기능 자체는
-계속 동작한다. 정확도만 떨어진다.
+```bash
+cd proxy
+npm install
+cp .env.example .env.local      # GEMINI_API_KEY 채우기
+npm run dev                     # http://localhost:8787
+```
+
+키는 [Google AI Studio](https://aistudio.google.com/apikey)에서 발급한다
+(`AIza`로 시작한다).
+
+```bash
+curl http://localhost:8787/api/health
+# → {"ok":true,"hasKey":true,"region":"local"}
+```
+
+### 배포
+
+```bash
+cd proxy
+npx vercel login
+npx vercel link            # 프로젝트 생성/연결
+npx vercel env add GEMINI_API_KEY production
+npm run deploy
+```
+
+배포 후 확인 — **`region`이 `iad1`이어야 한다**:
+
+```bash
+curl https://<프로젝트>.vercel.app/api/health
+```
+
+그리고 `web/.env`:
+
+```bash
+VITE_PARSER_URL=https://<프로젝트>.vercel.app/api
+```
+
+### 웹앱 배포 후 반드시 할 것
+
+`ALLOWED_ORIGINS` 환경변수에 실제 도메인을 추가한다. 없으면 배포된 웹에서
+`403 origin_not_allowed`가 난다 — CORS는 브라우저만 막아주므로 서버에서도 확인한다.
+
+```bash
+npx vercel env add ALLOWED_ORIGINS production
+# 값: https://실제도메인,http://localhost:5173
+```
 
 ### 무료 티어 한도
 
 `gemini-3.6-flash` 무료 티어는 **분당 20요청**이다. 붙여넣기 1회당 1요청이라
-평소엔 넉넉하지만, 연속 테스트 시 `RESOURCE_EXHAUSTED`가 난다.
-이 경우도 규칙 기반으로 대체된다.
+평소엔 넉넉하지만, 초과 시 `RESOURCE_EXHAUSTED`가 나고 이때도 규칙 기반으로 대체된다.
 
 ---
 
@@ -223,13 +235,13 @@ Worker 응답의 `meta.colo`로 실행 위치를 확인할 수 있다. 이 값�
 | `npm run preview` | 빌드 결과 확인. **PWA 동작 확인은 여기서** |
 | `node scripts/gen-icons.mjs` | PWA 아이콘 재생성 |
 
-**worker/**
+**proxy/**
 
 | 명령 | 설명 |
 |---|---|
-| `npm run dev` | 로컬 Worker |
+| `npm run dev` | 로컬 프록시 (`vercel dev`, 8787 포트) |
 | `npm run typecheck` | 타입 검사 |
-| `npm run deploy` | Cloudflare 배포 |
+| `npm run deploy` | Vercel 프로덕션 배포 |
 
 ---
 

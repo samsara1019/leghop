@@ -4,9 +4,9 @@ import { SupabaseCheck } from '../components/SupabaseCheck'
 import { db } from '../db/schema'
 import {
   GOOGLE_MAPS_MAP_ID,
-  WORKER_URL,
+  PARSER_URL,
   hasMapsKey,
-  hasWorker,
+  hasParser,
 } from '../lib/env'
 
 type CheckState = 'ok' | 'warn' | 'fail' | 'pending'
@@ -114,12 +114,12 @@ export function Debug() {
         : '없음 — Advanced Marker 비활성 (P1에서 필요)',
     },
     {
-      label: 'Gemini Worker',
-      state: hasWorker ? 'ok' : WORKER_URL ? 'fail' : 'warn',
-      detail: hasWorker
-        ? WORKER_URL
-        : WORKER_URL
-          ? 'VITE_WORKER_URL이 URL이 아닙니다. Worker 주소(예: http://localhost:8787)를 넣어야 하며, Gemini 키는 worker/.dev.vars에 둡니다'
+      label: 'Gemini 프록시',
+      state: hasParser ? 'ok' : PARSER_URL ? 'fail' : 'warn',
+      detail: hasParser
+        ? PARSER_URL
+        : PARSER_URL
+          ? 'VITE_PARSER_URL이 URL이 아닙니다. 프록시 주소(예: http://localhost:8787)를 넣어야 하며, Gemini 키는 proxy/.env.local에 둡니다'
           : '없음 — 텍스트 파서(P3)만 비활성',
     },
     dbCheck,

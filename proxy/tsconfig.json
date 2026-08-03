@@ -2,15 +2,15 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "ES2022",
+    "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["@cloudflare/workers-types"],
+    "types": ["node"],
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noEmit": true,
-    "isolatedModules": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": false
   },
-  "include": ["src/**/*.ts"]
+  "include": ["api/**/*.ts", "lib/**/*.ts"]
 }

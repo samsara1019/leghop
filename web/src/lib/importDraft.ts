@@ -1,4 +1,4 @@
-import { WORKER_URL, hasWorker } from './env'
+import { PARSER_URL, hasParser } from './env'
 import { inferCategory } from './categories'
 import { stripLinePrefix, type ColumnRole, type TableData } from './pasteParse'
 import type { PlaceCategory, TravelMode } from '../db/schema'
@@ -141,7 +141,7 @@ function guessDuration(text: string): number | undefined {
 }
 
 /**
- * Worker(Gemini) 없이도 쓸 수 있는 규칙 기반 파서.
+ * 프록시(Gemini) 없이도 쓸 수 있는 규칙 기반 파서.
  *
  * Gemini가 훨씬 잘하지만, 키가 없으면 기능이 아예 죽는 것보다는
  * 줄 단위로라도 뽑아주는 게 낫다. 결과는 어차피 사용자가 확인한다.
@@ -210,21 +210,21 @@ interface WorkerItem {
   note?: string
 }
 
-/** Worker 경유 Gemini 파싱. 실패하면 호출부가 규칙 기반으로 넘어간다. */
+/** 프록시 경유 Gemini 파싱. 실패하면 호출부가 규칙 기반으로 넘어간다. */
 export async function draftsFromProseGemini(
   text: string,
   cityHint: string,
 ): Promise<Draft[]> {
-  if (!hasWorker) throw new Error('worker_not_configured')
+  if (!hasParser) throw new Error('parser_not_configured')
 
-  const res = await fetch(`${WORKER_URL}/parse`, {
+  const res = await fetch(`${PARSER_URL}/parse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, cityHint }),
   })
   if (!res.ok) {
     const detail = await res.text()
-    throw new Error(`worker_error ${res.status}: ${detail.slice(0, 200)}`)
+    throw new Error(`parser_error ${res.status}: ${detail.slice(0, 200)}`)
   }
 
   const payload = (await res.json()) as { items?: WorkerItem[] }

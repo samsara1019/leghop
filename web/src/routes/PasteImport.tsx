@@ -13,7 +13,7 @@ import {
 } from '../db/plannerRepo'
 import { CATEGORIES, CATEGORY_ORDER } from '../lib/categories'
 import { MODE_EMOJI, MODE_LABEL } from '../lib/directions'
-import { hasWorker } from '../lib/env'
+import { hasParser } from '../lib/env'
 import {
   defaultBias,
   destinationForDate,
@@ -148,7 +148,7 @@ export function PasteImport() {
       if (parsed.kind === 'table') {
         list = draftsFromTable(parsed, roles)
         setSource('table')
-      } else if (hasWorker) {
+      } else if (hasParser) {
         try {
           list = await draftsFromProseGemini(raw, city)
           setSource('gemini')
@@ -337,7 +337,7 @@ export function PasteImport() {
                     <strong>텍스트</strong>로 인식했습니다 · {parsed.lines.length}줄
                   </p>
                   <p className="mt-1.5 text-xs text-slate-500">
-                    {hasWorker
+                    {hasParser
                       ? 'Gemini로 항목을 구조화합니다.'
                       : 'Worker가 설정되지 않아 규칙 기반으로 처리합니다. 정확도가 낮을 수 있습니다.'}
                   </p>

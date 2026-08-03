@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-ssr/
 .wrangler/
+.vercel/
 
 # 비밀 — 절대 커밋 금지
 .env

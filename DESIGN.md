@@ -52,7 +52,7 @@ Leghop은 이 둘을 없앤다. 장소는 **미리** 등록해두고, 순서만 
 | 인증 | **Google OAuth** | 비밀번호 관리·재설정 화면이 필요 없고, 이메일 초대 흐름과 자연스럽다 |
 | 공유 | **함께 편집, 기본 2명** | 상한을 `trips.max_members` 컬럼으로 둬서 SQL 수정 없이 늘릴 수 있다. `role`에 `viewer`를 미리 정의해 보기 전용도 마이그레이션 없이 붙는다 |
 | 텍스트 파서 | **Gemini API** (`gemini-3.6-flash`) | §8 |
-| 백엔드 | **Cloudflare Worker 1개** (Gemini 중계 전용) | API 키 은닉 |
+| 백엔드 | **Vercel Functions 1개** (Gemini 중계 전용) | API 키 은닉. Cloudflare Workers는 홍콩 콜로에서 실행돼 Gemini 지역 제한에 막힌다 — Vercel은 실행 지역을 고정할 수 있다 (§7.3) |
 
 ---
 
@@ -274,18 +274,19 @@ Node 24 · React 19.2 · TypeScript 6.0 · Vite 8.2
 > Node 18은 Vite 8·Wrangler 4가 거부한다. 저장소 루트 `.nvmrc`로 24를 고정했다.
 > 사용자 전역 기본값은 18이라 `nvm use`가 필요하다.
 
-### 백엔드 — Cloudflare Worker 1개
+### 백엔드 — Vercel Functions 1개 (`proxy/`)
 
 | 엔드포인트 | 용도 |
 |---|---|
-| `POST /parse` | 텍스트 → 일정 구조화 (Gemini API 중계, 키 은닉) |
+| `POST /api/parse` | 텍스트 → 일정 구조화 (Gemini API 중계, 키 은닉) |
+| `GET /api/health` | 키 존재·**실행 지역** 확인. 지역이 미국이 아니면 Gemini가 막힌다 |
 
 Places / Directions / Maps JS는 **브라우저에서 JS API 라이브러리로 직접 호출**한다. 이 경우 API 키는 HTTP referrer 제한으로 보호되므로 프록시가 필요 없다.
 (Web Service REST 엔드포인트를 직접 부르면 referrer 제한이 안 되므로 반드시 JS API 라이브러리를 쓸 것)
 
 ### 키 관리
 - **Google Maps 키** — 브라우저 노출. referrer 제한 필수 + 일 쿼터 상한 설정
-- **Gemini 키** — Worker 환경변수. 브라우저에 절대 내려가지 않음. Worker에 IP 기준 rate limit 적용
+- **Gemini 키** — Vercel 환경변수. 브라우저에 절대 내려가지 않음. 출처 허용목록으로 남용 차단
 
 ---
 
@@ -325,7 +326,7 @@ Places / Directions / Maps JS는 **브라우저에서 JS API 라이브러리로 
 | 현지에서 데이터가 안 터지면 지도를 못 봄 | turn-by-turn 텍스트 + 주소 + 좌표를 크게 보여주는 것으로 대체 (§3.4). 로밍/eSIM 사용을 전제로 하는 설계임을 명시 |
 | iOS Safari의 IndexedDB 삭제 | `storage.persist()` + 홈 화면 설치 유도 |
 | 텍스트 파서의 장소 매칭 오류 | 자동 확정 금지. 항상 후보 3개 제시 후 사용자 확인 |
-| **Cloudflare 배포본에서 Gemini가 지역 제한에 막힌다** | 한국에서 호출해도 Worker가 홍콩(HKG) 콜로에서 실행돼 `User location is not supported`(400)가 난다. Smart Placement로도 안 바뀐다. 로컬 Worker는 정상이므로 개발은 지장 없고, 배포 시에는 지역 고정이 가능한 곳(Vercel `iad1` / Cloud Run `us-central1`)으로 프록시를 옮긴다. Gemini 실패 시 규칙 기반 파서로 자동 대체되므로 기능은 유지된다 |
+| Gemini 지역 제한 | **해결됨** — 프록시를 Vercel Functions(`regions: ["iad1"]`)로 옮겼다. Cloudflare Workers는 한국에서 호출해도 홍콩(HKG) 콜로에서 실행돼 `User location is not supported`(400)가 났고 Smart Placement로도 안 바뀌었다. **Vercel에서도 Edge 런타임을 쓰면 지역 고정이 안 되므로 재현된다** — Node 런타임을 유지할 것 |
 | Gemini 무료 티어 분당 20요청 | 붙여넣기 1회당 1요청이라 평소엔 여유. 초과 시 규칙 기반으로 대체 |
 
 ---

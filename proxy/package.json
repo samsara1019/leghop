@@ -1,0 +1,15 @@
+{
+  "name": "leghop-proxy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev --listen 8787",
+    "deploy": "vercel deploy --prod",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.3.28",
+    "typescript": "^5.9.3",
+    "vercel": "^48.2.6"
+  }
+}
