@@ -74,7 +74,17 @@ export async function deleteTrip(tripId: string): Promise<void> {
 
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
+    [
+      db.trips,
+      db.destinations,
+      db.places,
+      db.days,
+      db.items,
+      db.legs,
+      db.packingItems,
+      db.documents,
+      db.documentBlobs,
+    ],
     async () => {
       const dayIds = await db.days.where('tripId').equals(tripId).primaryKeys()
       if (dayIds.length) {
@@ -86,6 +96,8 @@ export async function deleteTrip(tripId: string): Promise<void> {
       await db.places.where('tripId').equals(tripId).delete()
       await db.destinations.where('tripId').equals(tripId).delete()
       await db.packingItems.where('tripId').equals(tripId).delete()
+      await db.documents.where('tripId').equals(tripId).delete()
+      await db.documentBlobs.where('tripId').equals(tripId).delete()
       await db.trips.delete(tripId)
     },
   )

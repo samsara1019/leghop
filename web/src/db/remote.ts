@@ -2,6 +2,8 @@ import { requireSupabase } from '../lib/supabase'
 import type {
   Day,
   Destination,
+  DocumentCategory,
+  TripDocument,
   Item,
   Leg,
   LegOption,
@@ -109,6 +111,19 @@ interface PackingRow {
   source: string
 }
 
+interface DocumentRow {
+  id: string
+  trip_id: string
+  title: string
+  category: string
+  file_name: string
+  mime_type: string
+  size_bytes: number
+  storage_path: string
+  note: string | null
+  created_at: string
+}
+
 // ---------- 매핑 ----------
 
 const nz = <T,>(v: T | null | undefined): T | undefined => v ?? undefined
@@ -205,6 +220,21 @@ export function toPackingItem(r: PackingRow): PackingItem {
   }
 }
 
+export function toDocument(r: DocumentRow): TripDocument {
+  return {
+    id: r.id,
+    tripId: r.trip_id,
+    title: r.title,
+    category: r.category as DocumentCategory,
+    fileName: r.file_name,
+    mimeType: r.mime_type,
+    sizeBytes: Number(r.size_bytes),
+    storagePath: r.storage_path,
+    note: nz(r.note),
+    createdAt: Date.parse(r.created_at),
+  }
+}
+
 const iso = (ms: number | undefined) =>
   ms && ms > 0 ? new Date(ms).toISOString() : null
 
@@ -263,6 +293,7 @@ export interface TripSnapshot {
   items: Item[]
   legs: Leg[]
   packingItems: PackingItem[]
+  documents: TripDocument[]
 }
 
 /** 내가 볼 수 있는 여행 목록. RLS가 멤버인 것만 돌려준다 */
@@ -283,7 +314,7 @@ export async function fetchTrips() {
 /** 한 여행을 통째로. 오프라인 미러를 갈아끼우는 데 쓴다 */
 export async function fetchTripSnapshot(tripId: string): Promise<TripSnapshot | null> {
   const sb = requireSupabase()
-  const [trip, dests, places, days, items, legs, packing] = await Promise.all([
+  const [trip, dests, places, days, items, legs, packing, docs] = await Promise.all([
     sb.from('trips').select('*').eq('id', tripId).maybeSingle(),
     sb.from('destinations').select('*').eq('trip_id', tripId),
     sb.from('places').select('*').eq('trip_id', tripId),
@@ -291,6 +322,7 @@ export async function fetchTripSnapshot(tripId: string): Promise<TripSnapshot | 
     sb.from('items').select('*').eq('trip_id', tripId),
     sb.from('legs').select('*').eq('trip_id', tripId),
     sb.from('packing_items').select('*').eq('trip_id', tripId),
+    sb.from('documents').select('*').eq('trip_id', tripId).order('created_at'),
   ])
   const labels = [
     'trips',
@@ -300,8 +332,18 @@ export async function fetchTripSnapshot(tripId: string): Promise<TripSnapshot | 
     'items',
     'legs',
     'packing_items',
+    'documents',
   ]
-  for (const [i, r] of [trip, dests, places, days, items, legs, packing].entries()) {
+  for (const [i, r] of [
+    trip,
+    dests,
+    places,
+    days,
+    items,
+    legs,
+    packing,
+    docs,
+  ].entries()) {
     fail(r.error, `${labels[i]}.select`)
   }
   if (!trip.data) return null
@@ -314,6 +356,7 @@ export async function fetchTripSnapshot(tripId: string): Promise<TripSnapshot | 
     items: (items.data as ItemRow[]).map(toItem),
     legs: (legs.data as LegRow[]).map(toLeg),
     packingItems: (packing.data as PackingRow[]).map(toPackingItem),
+    documents: (docs.data as DocumentRow[]).map(toDocument),
   }
 }
 
@@ -523,6 +566,70 @@ export async function deletePackingItemsRemote(ids: string[]): Promise<void> {
   const sb = requireSupabase()
   const { error } = await sb.from('packing_items').delete().in('id', ids)
   fail(error, 'packing_items.delete')
+}
+
+// ---------- 서류보관함 ----------
+//
+// 파일은 비공개 Storage 버킷에, 메타데이터는 테이블에 둔다.
+// 경로는 항상 {tripId}/{documentId} — Storage 정책이 첫 조각으로 권한을 본다.
+
+const DOCS_BUCKET = 'documents'
+
+export function documentPath(tripId: string, documentId: string): string {
+  return `${tripId}/${documentId}`
+}
+
+export async function uploadDocumentFile(
+  path: string,
+  file: Blob,
+  mimeType: string,
+): Promise<void> {
+  const sb = requireSupabase()
+  const { error } = await sb.storage.from(DOCS_BUCKET).upload(path, file, {
+    contentType: mimeType,
+    upsert: true,
+  })
+  if (error) {
+    throw new Error(`파일 업로드 실패: ${error.message}`)
+  }
+}
+
+export async function downloadDocumentFile(path: string): Promise<Blob> {
+  const sb = requireSupabase()
+  const { data, error } = await sb.storage.from(DOCS_BUCKET).download(path)
+  if (error || !data) {
+    throw new Error(`파일 다운로드 실패: ${error?.message ?? 'no data'}`)
+  }
+  return data
+}
+
+export async function removeDocumentFile(path: string): Promise<void> {
+  const sb = requireSupabase()
+  const { error } = await sb.storage.from(DOCS_BUCKET).remove([path])
+  // 파일이 이미 없어도 메타데이터 삭제는 계속 진행해야 한다
+  if (error) console.warn('Storage 파일 삭제 실패', error.message)
+}
+
+export async function upsertDocument(doc: TripDocument): Promise<void> {
+  const sb = requireSupabase()
+  const { error } = await sb.from('documents').upsert({
+    id: doc.id,
+    trip_id: doc.tripId,
+    title: doc.title,
+    category: doc.category,
+    file_name: doc.fileName,
+    mime_type: doc.mimeType,
+    size_bytes: doc.sizeBytes,
+    storage_path: doc.storagePath,
+    note: doc.note ?? null,
+  })
+  fail(error, 'documents.upsert')
+}
+
+export async function deleteDocumentRemote(id: string): Promise<void> {
+  const sb = requireSupabase()
+  const { error } = await sb.from('documents').delete().eq('id', id)
+  fail(error, 'documents.delete')
 }
 
 // ---------- 공유 ----------

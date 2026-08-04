@@ -52,7 +52,17 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
 
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
+    [
+      db.trips,
+      db.destinations,
+      db.places,
+      db.days,
+      db.items,
+      db.legs,
+      db.packingItems,
+      db.documents,
+      db.documentBlobs,
+    ],
     async () => {
       const dayIds = await db.days.where('tripId').equals(tripId).primaryKeys()
       if (dayIds.length) {
@@ -63,6 +73,9 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
       await db.places.where('tripId').equals(tripId).delete()
       await db.destinations.where('tripId').equals(tripId).delete()
       await db.packingItems.where('tripId').equals(tripId).delete()
+      // 메타데이터는 갈아끼우지만 **Blob 캐시는 지우지 않는다.**
+      // 지워버리면 오프라인 열람이 깨지고, 다시 받으려면 네트워크가 필요하다.
+      await db.documents.where('tripId').equals(tripId).delete()
 
       await db.trips.put(snap.trip)
       await db.destinations.bulkPut(snap.destinations)
@@ -71,15 +84,41 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
       await db.items.bulkPut(snap.items)
       await db.legs.bulkPut(snap.legs)
       await db.packingItems.bulkPut(snap.packingItems)
+      await db.documents.bulkPut(snap.documents)
     },
   )
   return true
 }
 
+/**
+ * 메타데이터가 사라진 서류의 Blob 캐시를 정리한다.
+ * 미러링이 메타데이터만 갈아끼우므로, 상대가 지운 서류의 파일이 이 기기에
+ * 남아 용량을 먹는 일이 생긴다.
+ */
+export async function pruneOrphanBlobs(tripId: string): Promise<number> {
+  const ids = new Set(
+    await db.documents.where('tripId').equals(tripId).primaryKeys(),
+  )
+  const blobIds = await db.documentBlobs.where('tripId').equals(tripId).primaryKeys()
+  const orphans = blobIds.filter((id) => !ids.has(id))
+  if (orphans.length) await db.documentBlobs.bulkDelete(orphans)
+  return orphans.length
+}
+
 export async function purgeTrip(tripId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
+    [
+      db.trips,
+      db.destinations,
+      db.places,
+      db.days,
+      db.items,
+      db.legs,
+      db.packingItems,
+      db.documents,
+      db.documentBlobs,
+    ],
     async () => {
       const dayIds = await db.days.where('tripId').equals(tripId).primaryKeys()
       if (dayIds.length) {
@@ -90,6 +129,8 @@ export async function purgeTrip(tripId: string): Promise<void> {
       await db.places.where('tripId').equals(tripId).delete()
       await db.destinations.where('tripId').equals(tripId).delete()
       await db.packingItems.where('tripId').equals(tripId).delete()
+      await db.documents.where('tripId').equals(tripId).delete()
+      await db.documentBlobs.where('tripId').equals(tripId).delete()
       await db.trips.delete(tripId)
     },
   )
@@ -166,9 +207,21 @@ export async function uploadLocalTrips(
 export async function clearMirror(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
+    [
+      db.trips,
+      db.destinations,
+      db.places,
+      db.days,
+      db.items,
+      db.legs,
+      db.packingItems,
+      db.documents,
+      db.documentBlobs,
+    ],
     async () => {
       await Promise.all([
+        db.documentBlobs.clear(),
+        db.documents.clear(),
         db.packingItems.clear(),
         db.legs.clear(),
         db.items.clear(),

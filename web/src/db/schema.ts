@@ -144,6 +144,40 @@ export interface PackingItem {
   source: 'template' | 'custom'
 }
 
+export type DocumentCategory =
+  | 'voucher'
+  | 'ticket'
+  | 'lodging'
+  | 'insurance'
+  | 'id'
+  | 'other'
+
+export interface TripDocument {
+  id: string
+  tripId: string
+  title: string
+  category: DocumentCategory
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  /** documents 버킷 안의 경로. {tripId}/{id} */
+  storagePath: string
+  note?: string
+  createdAt: number
+}
+
+/**
+ * 서류 파일 본체. 메타데이터와 **분리한 테이블**에 둔다.
+ * 목록을 그릴 때마다 수 MB짜리 Blob을 함께 읽어오면 화면이 느려진다.
+ */
+export interface DocumentBlob {
+  /** TripDocument.id와 같다 */
+  id: string
+  tripId: string
+  blob: Blob
+  cachedAt: number
+}
+
 const db = new Dexie('leghop') as Dexie & {
   trips: EntityTable<Trip, 'id'>
   destinations: EntityTable<Destination, 'id'>
@@ -152,6 +186,8 @@ const db = new Dexie('leghop') as Dexie & {
   items: EntityTable<Item, 'id'>
   legs: EntityTable<Leg, 'id'>
   packingItems: EntityTable<PackingItem, 'id'>
+  documents: EntityTable<TripDocument, 'id'>
+  documentBlobs: EntityTable<DocumentBlob, 'id'>
 }
 
 db.version(1).stores({
@@ -201,6 +237,12 @@ db.version(2)
 /** v3: 여행 준비물 체크리스트 */
 db.version(3).stores({
   packingItems: 'id, tripId, category, [tripId+order]',
+})
+
+/** v4: 서류보관함. 파일 본체는 오프라인 열람용으로 Blob째 캐시한다 */
+db.version(4).stores({
+  documents: 'id, tripId, category, createdAt',
+  documentBlobs: 'id, tripId',
 })
 
 export { db }

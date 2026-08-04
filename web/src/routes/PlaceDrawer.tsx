@@ -78,39 +78,52 @@ export function PlaceDrawer() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-5">
-      <header className="flex items-baseline justify-between gap-3">
-        <div className="min-w-0">
-          <Link to="/" className="text-xs text-slate-400">
-            ← 여행 목록
-          </Link>
-          <h1 className="truncate text-xl font-semibold tracking-tight">
-            {trip.title}
-          </h1>
-          <p className="truncate text-sm text-slate-500">
-            {cities.map((c) => c.name).join(' → ') || '도시 없음'} · 장소 {all.length}개
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Link
-            to={`/trip/${tripId}/packing`}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
-          >
-            준비물
-          </Link>
-          <Link
-            to={`/trip/${tripId}/share`}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
-          >
-            공유
-          </Link>
-          <Link
-            to={`/trip/${tripId}/plan`}
-            className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
-          >
-            일정 짜기 →
-          </Link>
-        </div>
+      <header>
+        <Link to="/" className="text-xs text-slate-400">
+          ← 여행 목록
+        </Link>
+        <h1 className="truncate text-xl font-semibold tracking-tight">
+          {trip.title}
+        </h1>
+        <p className="truncate text-sm text-slate-500">
+          {cities.map((c) => c.name).join(' → ') || '도시 없음'} · 장소 {all.length}개
+        </p>
       </header>
+
+      {/* 링크가 4개라 헤더 한 줄에 넣으면 모바일에서 넘친다.
+          가로 스크롤 줄로 빼고 주 동작(일정 짜기)만 강조한다. */}
+      <nav className="-mx-5 flex gap-2 overflow-x-auto px-5">
+        <Link
+          to={`/trip/${tripId}/plan`}
+          className="shrink-0 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+        >
+          일정 짜기 →
+        </Link>
+        <Link
+          to={`/trip/${tripId}/packing`}
+          className="shrink-0 whitespace-nowrap rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+        >
+          준비물
+        </Link>
+        <Link
+          to={`/trip/${tripId}/docs`}
+          className="shrink-0 whitespace-nowrap rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+        >
+          서류
+        </Link>
+        <Link
+          to={`/trip/${tripId}/cities`}
+          className="shrink-0 whitespace-nowrap rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+        >
+          도시
+        </Link>
+        <Link
+          to={`/trip/${tripId}/share`}
+          className="shrink-0 whitespace-nowrap rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700"
+        >
+          공유
+        </Link>
+      </nav>
 
       <div className="flex flex-wrap items-center gap-1.5">
         <Chip active={destId === null} onClick={() => setDestId(null)}>
@@ -122,12 +135,6 @@ export function PlaceDrawer() {
             {cityCounts.get(c.id) ? ` ${cityCounts.get(c.id)}` : ''}
           </Chip>
         ))}
-        <Link
-          to={`/trip/${tripId}/cities`}
-          className="ml-auto text-xs text-slate-400 underline underline-offset-2"
-        >
-          도시 관리
-        </Link>
       </div>
 
       <PlaceSearch

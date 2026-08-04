@@ -10,6 +10,7 @@ import { PasteImport } from './routes/PasteImport'
 import { Destinations } from './routes/Destinations'
 import { Share } from './routes/Share'
 import { Packing } from './routes/Packing'
+import { Documents } from './routes/Documents'
 import { Debug } from './routes/Debug'
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
                     <Route path="/trip/:tripId/cities" element={<Destinations />} />
                     <Route path="/trip/:tripId/share" element={<Share />} />
                     <Route path="/trip/:tripId/packing" element={<Packing />} />
+                    <Route path="/trip/:tripId/docs" element={<Documents />} />
                   </Routes>
                 </AuthGate>
               }
