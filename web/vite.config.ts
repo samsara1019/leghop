@@ -33,6 +33,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // 정적 가이드와 공유 이미지는 앱 셸이 아니다. precache에 넣으면
+        // 설치 용량만 커지고, 어차피 검색에서 직접 들어오는 문서다.
+        globIgnores: ['guide/**', 'og.png', '**/og.png'],
         // Google Maps 콘텐츠는 약관상 오프라인 캐시가 금지된다 (DESIGN.md §7.1-2).
         // 앱 셸만 precache 하고, 아래 호스트는 항상 네트워크로만 나가도록 못 박는다.
         runtimeCaching: [

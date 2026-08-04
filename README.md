@@ -279,6 +279,39 @@ npx vercel env add ALLOWED_ORIGINS production
 
 ---
 
+## SEO — 검색 유입용 정적 페이지
+
+앱 본체는 **로그인 뒤에 있는 SPA라 색인되지 않는다.** 메타태그만 손봐도
+"유럽여행 준비물"로는 걸리지 않는다. 그래서 자바스크립트 없이 완결되는
+정적 HTML을 따로 생성해 `dist/guide/`에 둔다.
+
+| 경로 | 노리는 검색어 |
+|---|---|
+| `/guide/europe-packing` | 유럽여행 준비물, 유럽 여행 준비물 리스트 |
+| `/guide/barcelona-packing` | 바르셀로나 여행 준비물, 스페인 여행 준비물 |
+| `/guide/travel-course` | 여행 코스, 여행 동선, 여행 일정 짜기 |
+
+**내용을 지어내지 않는다.** 준비물 목록은 앱이 실제로 쓰는
+`src/lib/packing.ts`를 빌드 시 번들해서 뽑는다 — 같은 데이터라 문서와 제품이
+어긋나지 않는다. 도시별 "추천 코스"는 만들지 않았다. 가보지 않은 곳의 일정을
+지어내면 사람들이 그걸 믿고 움직인다.
+
+```
+npm run build   # tsc → vite build → npm run seo
+npm run seo     # packing.ts 번들 → og.png → 가이드 HTML + sitemap.xml
+```
+
+`vercel.json`의 SPA 폴백은 `/guide/`, `robots.txt`, `sitemap.xml`, `og.png`를
+제외한다. 제외하지 않으면 **robots.txt 요청에 HTML이 응답된다** (실제로 그랬다).
+
+### 한계
+
+- 정적 페이지 3개로 경쟁 검색어 상위에 가지는 않는다. 기술적 토대와 첫 콘텐츠일 뿐이다
+- 순위는 콘텐츠가 쌓이고 외부 링크가 붙어야 움직인다
+- Google Search Console에 사이트를 등록하고 `sitemap.xml`을 제출해야 색인이 시작된다
+
+---
+
 ## 알아둘 것
 
 **Google Maps 타일은 캐시하지 않는다.**

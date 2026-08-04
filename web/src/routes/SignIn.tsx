@@ -8,7 +8,7 @@ export function SignIn() {
   const [busy, setBusy] = useState(false)
 
   return (
-    <div className="mx-auto flex min-h-full max-w-sm flex-col justify-center gap-6 p-6">
+    <div className="mx-auto flex min-h-full max-w-md flex-col justify-center gap-6 p-6">
       <div className="text-center">
         <svg viewBox="0 0 100 100" className="mx-auto size-16" aria-hidden>
           <rect x="5.5" y="5.5" width="89" height="89" rx="22" fill="#0f172a" />
@@ -22,9 +22,44 @@ export function SignIn() {
         </svg>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight">Leghop</h1>
         <p className="mt-1 text-sm text-slate-500">
-          여행 일정을 구간별 이동 경로로
+          여행 동선·코스와 준비물을 한 번에
         </p>
       </div>
+
+      {/* 로그인 전 화면이 곧 소개 페이지다. 검색으로 들어온 사람이
+          무엇을 하는 도구인지 알 수 있어야 한다. */}
+      <ul className="flex flex-col gap-3 text-sm">
+        <li className="flex gap-3">
+          <span aria-hidden>🗺️</span>
+          <span>
+            <strong>동선이 자동으로 계산됩니다.</strong>
+            <span className="block text-slate-500">
+              가고 싶은 곳을 모아 순서만 배치하면 구간별 이동 시간과 경로가
+              붙습니다. 공항버스와 택시를 나란히 비교할 수 있습니다.
+            </span>
+          </span>
+        </li>
+        <li className="flex gap-3">
+          <span aria-hidden>🧳</span>
+          <span>
+            <strong>준비물이 여행지에 맞춰 달라집니다.</strong>
+            <span className="block text-slate-500">
+              유럽이면 석회수 대비 샤워 필터와 C타입 어댑터, 여름이면 양산이
+              붙습니다. 체크한 것은 함께 가는 사람과 공유됩니다.
+            </span>
+          </span>
+        </li>
+        <li className="flex gap-3">
+          <span aria-hidden>📄</span>
+          <span>
+            <strong>바우처가 오프라인에서 열립니다.</strong>
+            <span className="block text-slate-500">
+              항공권·예약 확인서를 올려두면 데이터가 안 터지는 공항에서도
+              꺼내볼 수 있습니다.
+            </span>
+          </span>
+        </li>
+      </ul>
 
       {!hasSupabase ? (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/40">
@@ -105,6 +140,36 @@ export function SignIn() {
           로그인 실패: {error}
         </p>
       )}
+
+      <nav className="border-t border-slate-200 pt-4 text-xs dark:border-slate-800">
+        <p className="mb-1.5 text-slate-400">로그인 없이 볼 수 있는 가이드</p>
+        <ul className="flex flex-col gap-1">
+          <li>
+            <a
+              href="/guide/europe-packing"
+              className="text-sky-600 underline underline-offset-2 dark:text-sky-400"
+            >
+              유럽여행 준비물 체크리스트
+            </a>
+          </li>
+          <li>
+            <a
+              href="/guide/barcelona-packing"
+              className="text-sky-600 underline underline-offset-2 dark:text-sky-400"
+            >
+              바르셀로나 여행 준비물
+            </a>
+          </li>
+          <li>
+            <a
+              href="/guide/travel-course"
+              className="text-sky-600 underline underline-offset-2 dark:text-sky-400"
+            >
+              여행 코스·동선 짜는 법
+            </a>
+          </li>
+        </ul>
+      </nav>
     </div>
   )
 }

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# 로그인이 필요한 화면은 색인 대상이 아니다.
+# 크롤러가 읽을 수 있는 것은 / 와 /guide/ 뿐이다.
+Disallow: /trip/
+Disallow: /debug
+
+Sitemap: https://leghop.vercel.app/sitemap.xml
