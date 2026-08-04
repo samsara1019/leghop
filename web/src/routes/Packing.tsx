@@ -9,7 +9,14 @@ import {
   resetChecks,
   togglePackingItem,
 } from '../db/packingRepo'
-import { CATEGORY_SEQUENCE, buildContext, describeContext } from '../lib/packing'
+import {
+  CATEGORY_SEQUENCE,
+  DISCLOSURE,
+  buildContext,
+  describeContext,
+  hasAnyAffiliate,
+  recommendedLink,
+} from '../lib/packing'
 import { useTripSync } from '../lib/useTripSync'
 import { Chip } from '../components/Chip'
 
@@ -231,6 +238,19 @@ export function Packing() {
                             <p className="text-xs text-slate-500">{it.note}</p>
                           )}
                         </div>
+                        {recommendedLink(it.name) && (
+                          <a
+                            href={recommendedLink(it.name)}
+                            target="_blank"
+                            /* 제휴 링크에는 sponsored가 필요하다. 없으면
+                               검색엔진이 유료 링크를 자연 링크로 오인해
+                               사이트 평가에 불리하게 작용한다. */
+                            rel="sponsored nofollow noopener noreferrer"
+                            className="shrink-0 whitespace-nowrap rounded-full bg-sky-50 px-2.5 py-1 text-xs text-sky-700 dark:bg-sky-950/60 dark:text-sky-300"
+                          >
+                            추천템
+                          </a>
+                        )}
                         <button
                           type="button"
                           onClick={() =>
@@ -306,6 +326,12 @@ export function Packing() {
             템플릿을 다시 적용해도 <strong>직접 추가한 항목과 체크 상태는
             유지</strong>됩니다. 여행지·날짜를 바꾼 뒤 눌러보세요.
           </p>
+
+          {hasAnyAffiliate(items.map((i) => i.name)) && (
+            <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              {DISCLOSURE}
+            </p>
+          )}
         </>
       )}
     </div>

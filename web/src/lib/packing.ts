@@ -61,6 +61,67 @@ export function buildContext(
   }
 }
 
+// ---------------------------------------------------------------------------
+// 추천템 (쿠팡 파트너스)
+//
+// **DB에 저장하지 않는다.** 링크는 템플릿에 속하는 정보이고 사용자 데이터가
+// 아니다. 이름으로 조회하면 링크를 바꿔도 배포만으로 반영되고, 이미 만들어진
+// 체크리스트에 "템플릿 다시 적용"을 눌러야 할 이유가 없어진다.
+//
+// 대가성 문구(DISCLOSURE)는 제휴 링크가 노출되는 화면에 **반드시** 함께 띄운다.
+// 공정거래위원회 심사지침에 따른 의무이고, 빠지면 제재 대상이다.
+// ---------------------------------------------------------------------------
+
+export const DISCLOSURE =
+  '이 페이지는 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.'
+
+/** 항목 이름 → 쿠팡 파트너스 단축코드 */
+const AFFILIATE_CODES: Record<string, string> = {
+  '볼펜': 'fWf5J6aUbk',
+  'eSIM / 유심': 'fWf8BazHUa',
+  '힙색 / 크로스백': 'fWga7GKvaS',
+  '스트랩 폰케이스': 'fWgfBe8E68',
+  '일반 자물쇠': 'fWgenvrPzM',
+  '와이어 자물쇠': 'fWggYsRnxY',
+  '카라비너': 'fWgh2F62Ls',
+  '보스턴백': 'fWgjGq25w4',
+  '휴대폰 충전기': 'fWglLyalrw',
+  '멀티어댑터': 'fWgw9ZGyJw',
+  '3in1 충전기': 'fWgyQnffgq',
+  '보조배터리': 'fWgAwOjgPc',
+  '에어팟 / 이어폰': 'fWgCcqKxLo',
+  '에어팟 맥스': 'fWgBpwZB5E',
+  '카메라': 'fWgDtMhdGS',
+  '미니 삼각대': 'fWgEqKiG1Q',
+  '애플워치 / 스마트워치': 'fWgFbsWyMS',
+  '손풍기': 'fWgFYYqBVs',
+  '가습 마스크': 'fWgGSYCarI',
+  '목베개': 'fWgIoIGwlE',
+  '수면안대': 'fWgJtnbF3k',
+  '기내 보습 화장품': 'fWgLp2wnhk',
+  '종아리 압박밴드': 'fWgNxzZIR2',
+  '슬리퍼': 'fWgPPIQwSq',
+  '양산': 'fWgRweWG4W',
+  '샤워기필터': 'fWgTZh2Q0G',
+  '휴대용 세제': 'fWgXIwMxga',
+  '선크림': 'fWg5atCS4W',
+  '기내 보습제품': 'fWg3IdhEXY',
+  '물티슈': 'fWgZKeOmNE',
+  '휴족시간': 'fWgZKeOmNE',
+  '캐리어 저울': 'fWgYXgTBD2',
+  '피크닉매트': 'fWg1UQ6Mq4',
+}
+
+export function recommendedLink(name: string): string | undefined {
+  const code = AFFILIATE_CODES[name]
+  return code ? `https://link.coupang.com/a/${code}` : undefined
+}
+
+/** 제휴 링크가 하나라도 있는지 — 대가성 문구를 띄울지 판단한다 */
+export function hasAnyAffiliate(names: string[]): boolean {
+  return names.some((n) => n in AFFILIATE_CODES)
+}
+
 interface TemplateItem {
   category: string
   name: string
@@ -189,7 +250,7 @@ const TEMPLATE: TemplateItem[] = [
   { category: '세면/위생', name: '바디타올' },
   {
     category: '세면/위생',
-    name: '샤워키필터',
+    name: '샤워기필터',
     note: '유럽 석회수 대비',
     when: europe,
   },

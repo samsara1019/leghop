@@ -11,7 +11,13 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildContext, generateItems } from './.generated/packing.mjs'
+import {
+  DISCLOSURE,
+  buildContext,
+  generateItems,
+  hasAnyAffiliate,
+  recommendedLink,
+} from './.generated/packing.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = join(ROOT, 'dist')
@@ -207,6 +213,11 @@ li{margin:4px 0}
 .cat ul{list-style:none;padding:0;margin:0}
 .cat li{display:flex;gap:8px;align-items:baseline;font-size:14px;padding:3px 0}
 .cat li span.n{color:var(--muted);font-size:12px}
+.cat li a.rec{margin-left:auto;flex:none;background:#e0f2fe;color:#075985;border-radius:999px;
+  padding:2px 9px;font-size:11px;text-decoration:none;white-space:nowrap}
+@media (prefers-color-scheme:dark){.cat li a.rec{background:#082f49;color:#7dd3fc}}
+.disclosure{border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+  font-size:12px;color:var(--muted);margin:20px 0}
 .box{border:1px solid var(--line);border-radius:12px;padding:16px;margin:24px 0;background:var(--card)}
 .cta{display:inline-block;background:var(--fg);color:var(--bg);text-decoration:none;
   padding:12px 18px;border-radius:10px;font-weight:600;font-size:15px}
@@ -227,6 +238,11 @@ function renderGuide(g) {
     publisher: { '@type': 'Organization', name: 'Leghop' },
   }
 
+  const affiliate =
+    (g.sections ?? []).some((s) =>
+      hasAnyAffiliate(generateItems(s.ctx).map((i) => i.name)),
+    )
+
   const sections = (g.sections ?? [])
     .map((s) => {
       const items = generateItems(s.ctx)
@@ -237,10 +253,16 @@ function renderGuide(g) {
 ${groups
   .map(
     ([cat, list]) => `<div class="cat"><h3>${esc(cat)} <span class="n">${list.length}</span></h3><ul>${list
-      .map(
-        (i) =>
-          `<li><span>${esc(i.name)}</span>${i.note ? `<span class="n">${esc(i.note)}</span>` : ''}</li>`,
-      )
+      .map((i) => {
+        const link = recommendedLink(i.name)
+        return `<li><span>${esc(i.name)}</span>${
+          i.note ? `<span class="n">${esc(i.note)}</span>` : ''
+        }${
+          link
+            ? `<a class="rec" href="${esc(link)}" target="_blank" rel="sponsored nofollow noopener noreferrer">추천템</a>`
+            : ''
+        }</li>`
+      })
       .join('')}</ul></div>`,
   )
   .join('\n')}`
@@ -290,6 +312,7 @@ ${groups
 <main>
 <h1>${esc(g.title)}</h1>
 <p class="lead">${g.lead}</p>
+${affiliate ? `<p class="disclosure">${esc(DISCLOSURE)}</p>` : ''}
 ${sections}
 ${steps}
 ${extras}
@@ -302,6 +325,7 @@ ${extras}
 </div>
 </main>
 <footer>
+${affiliate ? `<p>${esc(DISCLOSURE)}</p>` : ''}
 <p>다른 가이드</p>
 <p>${others}</p>
 </footer>
