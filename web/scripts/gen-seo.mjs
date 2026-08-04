@@ -314,12 +314,18 @@ ${extras}
 // 출력
 // ---------------------------------------------------------------------------
 
-mkdirSync(join(DIST, 'guide'), { recursive: true })
-
+// 슬러그마다 디렉토리 + index.html.
+//
+// `guide/foo.html`로 두면 확장자 없는 /guide/foo 가 404가 된다 —
+// Vercel은 cleanUrls 없이 확장자를 붙여 찾아주지 않는다. 그리고 cleanUrls는
+// 켤 수 없다(검색엔진 소유확인 .html 파일이 308로 넘어가 버린다).
+// 디렉토리 index는 정적 호스팅의 기본 동작이라 어느 쪽도 건드리지 않는다.
 for (const g of GUIDES) {
+  const dir = join(DIST, 'guide', g.slug)
+  mkdirSync(dir, { recursive: true })
   const html = renderGuide(g)
-  writeFileSync(join(DIST, 'guide', `${g.slug}.html`), html)
-  console.log(`guide/${g.slug}.html`.padEnd(34) + `${(html.length / 1024).toFixed(1)}KB`)
+  writeFileSync(join(dir, 'index.html'), html)
+  console.log(`guide/${g.slug}/index.html`.padEnd(38) + `${(html.length / 1024).toFixed(1)}KB`)
 }
 
 const urls = [
