@@ -132,6 +132,18 @@ export interface Leg {
   staleReason?: LegStaleReason
 }
 
+export interface PackingItem {
+  id: string
+  tripId: string
+  category: string
+  name: string
+  note?: string
+  checked: boolean
+  order: number
+  /** template = 템플릿 생성분, custom = 사용자 추가. 재생성 시 custom을 보존한다 */
+  source: 'template' | 'custom'
+}
+
 const db = new Dexie('leghop') as Dexie & {
   trips: EntityTable<Trip, 'id'>
   destinations: EntityTable<Destination, 'id'>
@@ -139,6 +151,7 @@ const db = new Dexie('leghop') as Dexie & {
   days: EntityTable<Day, 'id'>
   items: EntityTable<Item, 'id'>
   legs: EntityTable<Leg, 'id'>
+  packingItems: EntityTable<PackingItem, 'id'>
 }
 
 db.version(1).stores({
@@ -184,6 +197,11 @@ db.version(2)
         .modify({ destinationId: id })
     }
   })
+
+/** v3: 여행 준비물 체크리스트 */
+db.version(3).stores({
+  packingItems: 'id, tripId, category, [tripId+order]',
+})
 
 export { db }
 

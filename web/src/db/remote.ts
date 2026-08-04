@@ -5,6 +5,7 @@ import type {
   Item,
   Leg,
   LegOption,
+  PackingItem,
   Place,
   PlaceCategory,
   TravelMode,
@@ -97,6 +98,17 @@ interface LegRow {
   stale_reason: string | null
 }
 
+interface PackingRow {
+  id: string
+  trip_id: string
+  category: string
+  name: string
+  note: string | null
+  checked: boolean
+  sort_order: number
+  source: string
+}
+
 // ---------- 매핑 ----------
 
 const nz = <T,>(v: T | null | undefined): T | undefined => v ?? undefined
@@ -180,6 +192,19 @@ export function toLeg(r: LegRow): Leg {
   }
 }
 
+export function toPackingItem(r: PackingRow): PackingItem {
+  return {
+    id: r.id,
+    tripId: r.trip_id,
+    category: r.category,
+    name: r.name,
+    note: nz(r.note),
+    checked: r.checked,
+    order: r.sort_order,
+    source: r.source === 'custom' ? 'custom' : 'template',
+  }
+}
+
 const iso = (ms: number | undefined) =>
   ms && ms > 0 ? new Date(ms).toISOString() : null
 
@@ -237,6 +262,7 @@ export interface TripSnapshot {
   days: Day[]
   items: Item[]
   legs: Leg[]
+  packingItems: PackingItem[]
 }
 
 /** 내가 볼 수 있는 여행 목록. RLS가 멤버인 것만 돌려준다 */
@@ -257,16 +283,25 @@ export async function fetchTrips() {
 /** 한 여행을 통째로. 오프라인 미러를 갈아끼우는 데 쓴다 */
 export async function fetchTripSnapshot(tripId: string): Promise<TripSnapshot | null> {
   const sb = requireSupabase()
-  const [trip, dests, places, days, items, legs] = await Promise.all([
+  const [trip, dests, places, days, items, legs, packing] = await Promise.all([
     sb.from('trips').select('*').eq('id', tripId).maybeSingle(),
     sb.from('destinations').select('*').eq('trip_id', tripId),
     sb.from('places').select('*').eq('trip_id', tripId),
     sb.from('days').select('*').eq('trip_id', tripId),
     sb.from('items').select('*').eq('trip_id', tripId),
     sb.from('legs').select('*').eq('trip_id', tripId),
+    sb.from('packing_items').select('*').eq('trip_id', tripId),
   ])
-  const labels = ['trips', 'destinations', 'places', 'days', 'items', 'legs']
-  for (const [i, r] of [trip, dests, places, days, items, legs].entries()) {
+  const labels = [
+    'trips',
+    'destinations',
+    'places',
+    'days',
+    'items',
+    'legs',
+    'packing_items',
+  ]
+  for (const [i, r] of [trip, dests, places, days, items, legs, packing].entries()) {
     fail(r.error, `${labels[i]}.select`)
   }
   if (!trip.data) return null
@@ -278,6 +313,7 @@ export async function fetchTripSnapshot(tripId: string): Promise<TripSnapshot | 
     days: (days.data as DayRow[]).map(toDay),
     items: (items.data as ItemRow[]).map(toItem),
     legs: (legs.data as LegRow[]).map(toLeg),
+    packingItems: (packing.data as PackingRow[]).map(toPackingItem),
   }
 }
 
@@ -457,6 +493,36 @@ export async function deleteLegsRemote(ids: string[]): Promise<void> {
   const sb = requireSupabase()
   const { error } = await sb.from('legs').delete().in('id', ids)
   fail(error, 'legs.delete')
+}
+
+export async function upsertPackingItems(
+  tripId: string,
+  list: PackingItem[],
+): Promise<void> {
+  if (list.length === 0) return
+  const sb = requireSupabase()
+  const { error } = await sb.from('packing_items').upsert(
+    list.map((p) => ({
+      id: p.id,
+      trip_id: tripId,
+      category: p.category,
+      name: p.name,
+      note: p.note ?? null,
+      checked: p.checked,
+      sort_order: p.order,
+      source: p.source,
+    })),
+    // 같은 여행에 같은 이름은 하나뿐이다 — 템플릿 재생성이 멱등해진다
+    { onConflict: 'trip_id,name' },
+  )
+  fail(error, 'packing_items.upsert')
+}
+
+export async function deletePackingItemsRemote(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const sb = requireSupabase()
+  const { error } = await sb.from('packing_items').delete().in('id', ids)
+  fail(error, 'packing_items.delete')
 }
 
 // ---------- 공유 ----------

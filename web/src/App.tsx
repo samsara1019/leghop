@@ -9,6 +9,7 @@ import { DayPlanner } from './routes/DayPlanner'
 import { PasteImport } from './routes/PasteImport'
 import { Destinations } from './routes/Destinations'
 import { Share } from './routes/Share'
+import { Packing } from './routes/Packing'
 import { Debug } from './routes/Debug'
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
                     <Route path="/trip/:tripId/import" element={<PasteImport />} />
                     <Route path="/trip/:tripId/cities" element={<Destinations />} />
                     <Route path="/trip/:tripId/share" element={<Share />} />
+                    <Route path="/trip/:tripId/packing" element={<Packing />} />
                   </Routes>
                 </AuthGate>
               }

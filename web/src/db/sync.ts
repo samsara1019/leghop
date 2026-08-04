@@ -6,6 +6,7 @@ import {
   upsertDestination,
   upsertItems,
   upsertLegs,
+  upsertPackingItems,
   upsertPlace,
   upsertTrip,
 } from './remote'
@@ -51,7 +52,7 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
 
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs],
+    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
     async () => {
       const dayIds = await db.days.where('tripId').equals(tripId).primaryKeys()
       if (dayIds.length) {
@@ -61,6 +62,7 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
       await db.days.where('tripId').equals(tripId).delete()
       await db.places.where('tripId').equals(tripId).delete()
       await db.destinations.where('tripId').equals(tripId).delete()
+      await db.packingItems.where('tripId').equals(tripId).delete()
 
       await db.trips.put(snap.trip)
       await db.destinations.bulkPut(snap.destinations)
@@ -68,6 +70,7 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
       await db.days.bulkPut(snap.days)
       await db.items.bulkPut(snap.items)
       await db.legs.bulkPut(snap.legs)
+      await db.packingItems.bulkPut(snap.packingItems)
     },
   )
   return true
@@ -76,7 +79,7 @@ export async function mirrorTrip(tripId: string): Promise<boolean> {
 export async function purgeTrip(tripId: string): Promise<void> {
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs],
+    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
     async () => {
       const dayIds = await db.days.where('tripId').equals(tripId).primaryKeys()
       if (dayIds.length) {
@@ -86,6 +89,7 @@ export async function purgeTrip(tripId: string): Promise<void> {
       }
       await db.places.where('tripId').equals(tripId).delete()
       await db.destinations.where('tripId').equals(tripId).delete()
+      await db.packingItems.where('tripId').equals(tripId).delete()
       await db.trips.delete(tripId)
     },
   )
@@ -136,6 +140,9 @@ export async function uploadLocalTrip(
   await upsertDays(tripId, days)
   await upsertItems(tripId, items)
   await upsertLegs(tripId, legs)
+
+  const packing = await db.packingItems.where('tripId').equals(tripId).toArray()
+  await upsertPackingItems(tripId, packing)
 }
 
 export async function uploadLocalTrips(
@@ -159,9 +166,10 @@ export async function uploadLocalTrips(
 export async function clearMirror(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.trips, db.destinations, db.places, db.days, db.items, db.legs],
+    [db.trips, db.destinations, db.places, db.days, db.items, db.legs, db.packingItems],
     async () => {
       await Promise.all([
+        db.packingItems.clear(),
         db.legs.clear(),
         db.items.clear(),
         db.days.clear(),

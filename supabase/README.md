@@ -8,6 +8,7 @@ Supabase 콘솔 → SQL Editor에 **번호 순서대로** 붙여넣고 Run.
 | `0002_owner_access.sql` | `is_trip_member()`가 소유자도 멤버로 인식하게 수정 |
 | `0003_owner_id_server_side.sql` | `trips.owner_id`를 서버에서 강제 + `whoami()` 진단 함수 |
 | `0004_trips_insert_orderfree.sql` | `trips` INSERT 정책을 평가 순서에 의존하지 않게 |
+| `0005_packing.sql` | 준비물 체크리스트 (`packing_items`) |
 
 전부 `create or replace` / `drop ... if exists`로 쓰여 있어 **여러 번 실행해도 안전**하다.
 
