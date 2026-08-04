@@ -228,7 +228,7 @@ export function DayPlanner() {
             key={d.id}
             type="button"
             onClick={() => setDayIdx(i)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
               d.id === day?.id
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                 : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
@@ -544,7 +544,7 @@ function LegRow({
             type="button"
             onClick={onSelect}
             aria-pressed={selected}
-            className="flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 dark:bg-slate-800"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 dark:bg-slate-800"
             // 선택 표시는 수단 색과 맞춘다 — 지도의 강조된 선과 같은 색이라 눈이 바로 잇는다
             style={
               selected
@@ -788,7 +788,7 @@ function ActivityForm({
               setTitle(t)
               setMin(d)
             }}
-            className="rounded-full bg-slate-100 px-2.5 py-1 text-xs dark:bg-slate-800"
+            className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-xs dark:bg-slate-800"
           >
             {t}
           </button>

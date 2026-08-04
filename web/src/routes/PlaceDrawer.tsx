@@ -309,7 +309,7 @@ function PlaceRow({
                 key={c}
                 type="button"
                 onClick={() => void updatePlace(place.id, { category: c })}
-                className={`rounded-full px-2.5 py-1 text-xs ${
+                className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs ${
                   place.category === c
                     ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                     : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
@@ -396,7 +396,7 @@ function PendingPlaceForm({
             key={c}
             type="button"
             onClick={() => setCategory(c)}
-            className={`rounded-full px-2.5 py-1 text-xs ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs ${
               category === c
                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                 : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'

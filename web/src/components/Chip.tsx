@@ -15,7 +15,7 @@ export function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-full px-3 py-1.5 text-xs ${
+      className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
         active
           ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
           : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
