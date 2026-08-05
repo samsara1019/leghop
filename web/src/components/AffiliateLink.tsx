@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DISCLOSURE } from '../lib/packing'
+import { trackEvent } from '../lib/analytics'
 
 const ACK_KEY = 'leghop:affiliate-ack'
 
@@ -29,7 +30,16 @@ function remember() {
  * 중요: 확인 버튼을 `<a href>`로 둔다. 클릭을 가로챈 뒤 스크립트로 창을 열면
  * 사용자 제스처가 끊겨 팝업 차단에 걸린다. 확인 버튼 자체가 링크여야 한다.
  */
-export function AffiliateLink({ href, label = '추천템' }: { href: string; label?: string }) {
+export function AffiliateLink({
+  href,
+  item,
+  label = '추천템',
+}: {
+  href: string
+  /** 준비물 항목 이름. GA 리포트에서 URL보다 이게 읽기 쉽다 */
+  item: string
+  label?: string
+}) {
   const [asking, setAsking] = useState(false)
 
   const badge =
@@ -45,6 +55,7 @@ export function AffiliateLink({ href, label = '추천템' }: { href: string; lab
         rel="sponsored nofollow noopener noreferrer"
         className={badge}
         onClick={(e) => {
+          trackEvent('affiliate_click', { item })
           if (acknowledged()) return
           e.preventDefault()
           setAsking(true)

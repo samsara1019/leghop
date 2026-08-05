@@ -279,6 +279,30 @@ npx vercel env add ALLOWED_ORIGINS production
 
 ---
 
+## 분석 (Google Analytics 4)
+
+측정 ID `G-ZG57N6TY7R`. 스니펫을 `index.html`에 박지 않고 `lib/analytics.ts`에서
+주입한다 — **localhost 트래픽을 실제 지표에서 빼기 위해서다.** 개발 중 클릭이
+섞이면 판단을 그르친다.
+
+SPA라 자동 `page_view`는 첫 로딩 1회뿐이다. `send_page_view: false`로 끄고
+라우터 변경마다 직접 보낸다(`components/Analytics.tsx`). 그러지 않으면 라우트
+8개가 전부 안 보인다.
+
+**경로에서 여행 식별자를 지운다** — `/trip/9f8e…/plan` → `/trip/:tripId/plan`.
+그대로 보내면 리포트가 여행 개수만큼 쪼개져 아무것도 읽히지 않고, 여행 id를
+분석 도구에 넘길 이유도 없다.
+
+정적 가이드·방침 페이지는 React 앱과 별개라 `gen-seo.mjs`가 스니펫을 따로 넣는다.
+**검색으로 들어오는 곳이 여기라서, 빠지면 SEO 성과가 하나도 안 잡힌다.**
+
+이벤트는 지금 `affiliate_click`(추천템 클릭, 항목 이름 포함) 하나다.
+
+> GA를 붙였으므로 개인정보처리방침의 자동 수집 항목·위탁 표가 함께 갱신돼 있다.
+> **분석 도구를 바꾸거나 이벤트를 추가하면 방침도 같이 고칠 것.**
+
+---
+
 ## 개인정보처리방침 · 회원 탈퇴
 
 `/privacy` 는 정적 페이지로 생성된다 (`scripts/gen-seo.mjs`).

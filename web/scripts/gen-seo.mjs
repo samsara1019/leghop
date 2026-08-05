@@ -22,6 +22,18 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = join(ROOT, 'dist')
 const SITE = process.env.SITE_URL ?? 'https://leghop.vercel.app'
+const GA_ID = process.env.GA_ID ?? 'G-ZG57N6TY7R'
+
+/**
+ * 정적 페이지는 React 앱과 별개라 GA를 따로 넣어야 한다.
+ * 검색으로 들어오는 곳이 여기라서, 빠지면 SEO 성과가 하나도 안 잡힌다.
+ * SPA와 달리 화면 이동이 없으므로 기본 자동 page_view를 그대로 쓴다.
+ */
+const GA_SNIPPET = GA_ID
+  ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}
+gtag('js',new Date());gtag('config','${GA_ID}');</script>`
+  : ''
 
 // ---------------------------------------------------------------------------
 // 가이드 정의
@@ -304,6 +316,7 @@ ${groups
 <meta property="og:site_name" content="Leghop">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+${GA_SNIPPET}
 <style>${STYLE}</style>
 </head>
 <body>
@@ -375,14 +388,29 @@ function renderPrivacy() {
       ])}
 
       <h3>자동으로 수집되는 정보</h3>
-      <p>서비스는 광고·분석 목적의 추적 도구를 사용하지 않습니다. 다만 인프라 제공업체
-      (아래 3항)의 서버 접속 기록이 보안·장애 대응 목적으로 일정 기간 남을 수 있습니다.</p>`),
+      <p>서비스 개선을 위해 <strong>Google Analytics</strong>를 사용하며, 다음이
+      자동으로 수집됩니다.</p>
+      ${ul([
+        '방문한 화면과 머문 시간, 유입 경로(검색어·참조 사이트)',
+        '기기·브라우저 종류, 대략적인 지역(도시 수준)',
+        '분석용 식별자(쿠키)',
+      ])}
+      <p>수집되는 화면 주소에서 <strong>여행 식별자는 제거</strong>한 뒤 전송합니다
+      (예: <code>/trip/:tripId/plan</code>). 이용자가 입력한 여행 내용·장소·메모·서류는
+      분석 도구로 전송되지 않습니다.</p>
+      <p>브라우저의 쿠키 차단 설정이나
+      <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">Google
+      Analytics 차단 부가기능</a>으로 수집을 거부할 수 있으며, 거부해도 서비스 이용에
+      제한이 없습니다.</p>
+      <p>그 밖에 인프라 제공업체(아래 3항)의 서버 접속 기록이 보안·장애 대응 목적으로
+      일정 기간 남을 수 있습니다.</p>`),
 
     sec('2. 이용 목적', ul([
       '계정 식별 및 로그인 유지',
       '여행 일정·장소·준비물·서류의 저장과 기기 간 동기화',
       '여행을 함께 편집하는 이용자 간 데이터 공유',
       '이동 경로 계산 등 서비스 기능 제공',
+      '이용 통계 분석을 통한 서비스 개선',
     ])),
 
     sec('3. 처리 위탁 및 국외 이전', `
@@ -394,6 +422,7 @@ function renderPrivacy() {
         <tr><td>Vercel Inc.</td><td>웹 서비스 호스팅</td><td>접속 기록</td></tr>
         <tr><td>Google LLC</td><td>지도·장소 검색·경로 계산 (Google Maps Platform)</td><td>검색어, 지도에서 조회한 위치</td></tr>
         <tr><td>Google LLC</td><td>메모 자동 분류 (Gemini API) — 붙여넣기 기능을 쓸 때만</td><td>이용자가 붙여넣은 메모 텍스트</td></tr>
+        <tr><td>Google LLC</td><td>이용 통계 분석 (Google Analytics)</td><td>화면 이동 기록, 기기·브라우저 정보, 분석용 식별자</td></tr>
       </table>
       <p>위 사업자의 서버는 국내 또는 국외에 위치할 수 있습니다. 이용자가 위탁에
       동의하지 않을 경우 서비스 이용이 제한될 수 있습니다.</p>
@@ -461,6 +490,7 @@ function renderPrivacy() {
 <meta name="robots" content="index,follow">
 <meta name="theme-color" content="#0f172a">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+${GA_SNIPPET}
 <style>${STYLE}
 table{width:100%;border-collapse:collapse;margin:0 0 14px;font-size:13px}
 th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}

@@ -249,7 +249,7 @@ export function Packing() {
                         </div>
                         {(() => {
                           const link = recommendedLink(it.name)
-                          return link ? <AffiliateLink href={link} /> : null
+                          return link ? <AffiliateLink href={link} item={it.name} /> : null
                         })()}
                         <button
                           type="button"
