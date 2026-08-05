@@ -279,6 +279,23 @@ npx vercel env add ALLOWED_ORIGINS production
 
 ---
 
+## 개인정보처리방침 · 회원 탈퇴
+
+`/privacy` 는 정적 페이지로 생성된다 (`scripts/gen-seo.mjs`).
+**내용은 코드에서 확인한 것만 쓴다** — 수집 항목은 DB 스키마, 제3자는 실제로
+호출하는 서비스, 파기 절차는 `delete_my_account()` 함수. 방침과 구현이 어긋나는
+것이 방침이 없는 것보다 나쁘다.
+
+회원 탈퇴는 여행 목록 화면 하단에 있다. 서버 함수 하나로 처리한다 —
+클라이언트에서 순서대로 지우면 중간에 끊겼을 때 반쯤 지워진 계정이 남고,
+**Storage 파일은 DB cascade로 지워지지 않아** 주인 없는 파일(여권 사본이 들어
+있을 수 있다)이 남는다.
+
+> ⚠️ 방침의 "국외 이전" 항목은 Supabase 프로젝트 리전에 따라 달라진다.
+> 콘솔 > Project Settings > General > Region 을 확인해 구체적으로 기재할 것.
+
+---
+
 ## SEO — 검색 유입용 정적 페이지
 
 앱 본체는 **로그인 뒤에 있는 SPA라 색인되지 않는다.** 메타태그만 손봐도
@@ -290,6 +307,7 @@ npx vercel env add ALLOWED_ORIGINS production
 | `/guide/europe-packing` | 유럽여행 준비물, 유럽 여행 준비물 리스트 |
 | `/guide/barcelona-packing` | 바르셀로나 여행 준비물, 스페인 여행 준비물 |
 | `/guide/travel-course` | 여행 코스, 여행 동선, 여행 일정 짜기 |
+| `/privacy` | (색인 대상이지만 유입용은 아님) |
 
 **내용을 지어내지 않는다.** 준비물 목록은 앱이 실제로 쓰는
 `src/lib/packing.ts`를 빌드 시 번들해서 뽑는다 — 같은 데이터라 문서와 제품이

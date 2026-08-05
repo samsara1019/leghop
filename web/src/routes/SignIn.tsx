@@ -132,6 +132,16 @@ export function SignIn() {
           <p className="text-center text-xs text-slate-400">
             여행은 최대 2명까지 함께 편집할 수 있습니다.
           </p>
+          <p className="text-center text-xs text-slate-400">
+            계속하면{' '}
+            <a
+              href="/privacy"
+              className="underline underline-offset-2"
+            >
+              개인정보처리방침
+            </a>
+            에 동의하는 것으로 봅니다.
+          </p>
         </>
       )}
 

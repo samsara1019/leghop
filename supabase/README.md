@@ -10,6 +10,7 @@ Supabase 콘솔 → SQL Editor에 **번호 순서대로** 붙여넣고 Run.
 | `0004_trips_insert_orderfree.sql` | `trips` INSERT 정책을 평가 순서에 의존하지 않게 |
 | `0005_packing.sql` | 준비물 체크리스트 (`packing_items`) |
 | `0006_documents.sql` | 서류보관함 (`documents` + 비공개 Storage 버킷) |
+| `0007_account_deletion.sql` | 회원 탈퇴 — 계정·데이터·Storage 파일 일괄 삭제 |
 
 전부 `create or replace` / `drop ... if exists`로 쓰여 있어 **여러 번 실행해도 안전**하다.
 

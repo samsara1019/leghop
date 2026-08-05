@@ -682,6 +682,19 @@ export async function inviteMember(
   return data as InviteResult
 }
 
+/**
+ * 계정과 내가 만든 모든 데이터를 지운다.
+ *
+ * 서버 함수 하나로 처리한다 — 클라이언트에서 순서대로 지우면 중간에 끊겼을 때
+ * 반쯤 지워진 계정이 남는다. Storage 파일까지 함께 지우는 것도 서버에서만 된다
+ * (DB의 cascade는 Storage 객체를 건드리지 않는다).
+ */
+export async function deleteMyAccount(): Promise<void> {
+  const sb = requireSupabase()
+  const { error } = await sb.rpc('delete_my_account')
+  fail(error, 'delete_my_account')
+}
+
 export async function removeMember(tripId: string, userId: string): Promise<void> {
   const sb = requireSupabase()
   const { error } = await sb
