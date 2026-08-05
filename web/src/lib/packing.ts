@@ -107,7 +107,7 @@ const AFFILIATE_CODES: Record<string, string> = {
   '선크림': 'fWg5atCS4W',
   '기내 보습제품': 'fWg3IdhEXY',
   '물티슈': 'fWgZKeOmNE',
-  '휴족시간': 'fWgZKeOmNE',
+  '휴족시간': 'fXgUGX8BhY',
   '캐리어 저울': 'fWgYXgTBD2',
   '피크닉매트': 'fWg1UQ6Mq4',
 }
